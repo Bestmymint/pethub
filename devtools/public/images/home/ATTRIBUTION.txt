@@ -1,0 +1,9 @@
+golden-puppy.png
+Source: original image supplied by the user for the PawMap home cover.
+
+golden-puppy-cutout.png
+Created using the built-in imagegen tool, editing golden-puppy.png.
+The original photograph is retained separately.
+
+Final prompt:
+Use case: background-extraction. Asset type: transparent photographic dog cutout for a scroll-driven PawMap website hero. Edit target: the supplied photo of the golden retriever puppy lying in grass. Remove the green background and all foreground grass cleanly, preserving this exact puppy's identity, pale golden fur, face, eyes, nose, slightly open mouth, floppy ears, lying pose, visible chest and paws, and photographic lighting. Preserve fine fur edges with true transparent alpha. Center the complete visible puppy on a transparent canvas, minimal padding, no cropped head or ears, no added objects, no text, no shadows baked into the background. Do not invent a different dog or change expression. Output a genuinely transparent PNG cutout.

@@ -1,0 +1,36 @@
+# Dependencies and generated output
+node_modules/
+.next/
+out/
+dist/
+/node_modules.startup-backup/
+/next.startup-backup/
+coverage/
+playwright-report/
+test-results/
+.playwright/
+lighthouse-report/
+*.tsbuildinfo
+
+# Local credentials and runtime data
+.env*
+!.env.example
+.aws/
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.credential*
+*.secret*
+*.log
+devtools/prisma/*.db
+devtools/infra/runtime/
+devtools/infra/backups/
+devtools/infra/deploy-logs/
+devtools/release/
+
+# Local editor and OS files
+.DS_Store
+.idea/
+.vscode/

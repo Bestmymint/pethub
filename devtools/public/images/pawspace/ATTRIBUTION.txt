@@ -1,0 +1,7 @@
+Illustration photos reused from the user's PawSpace project, with the original Unsplash image identifiers:
+golden.jpg — photo-1552053831-71594a27632d
+cat.jpg — photo-1514888286974-6c03e2ca1dba
+dog.jpg — photo-1587300003388-59208cc962cb
+Source: Unsplash. Usage is subject to the Unsplash License.
+These are bundled illustration photos, not photos uploaded by a pet's owner.
+DM Sans fonts retain their OFL license in public/fonts/pawspace/OFL-DM-Sans.txt.
