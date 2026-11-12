@@ -1,7 +1,6 @@
 # Evidence
 
-Screenshots that support the CI/CD claims. The author adds the image files to this folder; until they are
-added, the links below do not open. The pipeline itself is described in
+Screenshots that support the CI/CD claims. The pipeline itself is described in
 [`devtools/infra/ci/README.md`](../../devtools/infra/ci/README.md) and defined in
 [`devtools/infra/ci/Jenkinsfile`](../../devtools/infra/ci/Jenkinsfile).
 
