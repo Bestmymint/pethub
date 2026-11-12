@@ -10,7 +10,7 @@ export const messages = {
     login: 'เข้าสู่ระบบ',
     register: 'สมัครสมาชิก',
     favorites: 'รายการโปรด',
-    submissions: 'ข้อมูลที่ฉันส่ง',
+    submissions: 'รายการที่ฉันส่ง',
     notifications: 'การแจ้งเตือน',
     profile: 'โปรไฟล์',
     admin: 'ผู้ดูแลระบบ',

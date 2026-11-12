@@ -1,8 +1,11 @@
-import { Bell, CheckCircle2 } from 'lucide-react';
+import { Bell } from 'lucide-react';
+
+import { NotificationSeverityIcon } from '@/components/notification-severity-icon';
 import { PageShell } from '@/components/page-shell';
 import { MarkAllRead, NotificationLink } from '@/features/user/notification-actions';
 import { requireUser } from '@/lib/auth-guards';
 import type { Locale } from '@/lib/i18n';
+import { severityForNotification } from '@/lib/notification-severity';
 import { prisma } from '@/lib/prisma';
 
 export async function NotificationsPage({ locale }: { locale: Locale }) {
@@ -39,9 +42,10 @@ export async function NotificationsPage({ locale }: { locale: Locale }) {
                 <article
                   className={`surface flex gap-4 p-5 ${item.readAt ? 'opacity-65' : 'ring-2 ring-[var(--forest-bright)]'}`}
                 >
-                  <span className="grid size-10 shrink-0 place-items-center rounded-full bg-[var(--sage)] text-[var(--forest)]">
-                    <CheckCircle2 className="size-5" />
-                  </span>
+                  <NotificationSeverityIcon
+                    severity={severityForNotification(item)}
+                    locale={locale}
+                  />
                   <div>
                     <h2 className="font-black">{isThai ? item.titleTh : item.titleEn}</h2>
                     <p className="mt-1 text-sm text-[var(--text-muted)]">

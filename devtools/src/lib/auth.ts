@@ -1,13 +1,26 @@
 import { betterAuth } from 'better-auth';
 import { prismaAdapter } from 'better-auth/adapters/prisma';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { nextCookies } from 'better-auth/next-js';
 
 import { getTrustedOrigins } from '@/lib/auth-origins';
+import { authRequestProblem } from '@/lib/auth-validation';
 import { sendPasswordResetEmail } from '@/lib/mailer';
 import { prisma } from '@/lib/prisma';
 import { rateLimitDisabled, requiredEnvironment } from '@/lib/server-config';
 
 const authBaseUrl = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
+
+/**
+ * Server-side re-check of the email, display name and password rules the
+ * browser forms apply (rules in `form-validation`, request checks in
+ * `auth-validation`). Covers sign-up, password reset and name changes through
+ * `/update-user`. Better Auth still runs its own email and password checks.
+ */
+const validateCredentials = createAuthMiddleware(async (ctx) => {
+  const problem = authRequestProblem(ctx.path, ctx.body);
+  if (problem) throw new APIError('BAD_REQUEST', problem);
+});
 
 export const auth = betterAuth({
   appName: 'PetHub',
@@ -48,6 +61,7 @@ export const auth = betterAuth({
     },
   },
   plugins: [nextCookies()],
+  hooks: { before: validateCredentials },
 });
 
 export type AuthSession = typeof auth.$Infer.Session;

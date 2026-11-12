@@ -1,4 +1,4 @@
-import { FilePenLine, Plus, Send, ShieldCheck } from 'lucide-react';
+import { FilePenLine, Pencil, Plus, Send, ShieldCheck } from 'lucide-react';
 
 import { PageShell } from '@/components/page-shell';
 import { Badge } from '@/components/ui/badge';
@@ -23,7 +23,7 @@ export async function SubmissionsPage({ locale }: { locale: Locale }) {
           <div>
             <p className="eyebrow">{isThai ? 'การมีส่วนร่วมของฉัน' : 'My contributions'}</p>
             <h1 className="mt-2 text-4xl font-black">
-              {isThai ? 'รายการที่ส่ง' : 'My submissions'}
+              {isThai ? 'รายการที่ฉันส่ง' : 'My submissions'}
             </h1>
             <p className="mt-2 text-[var(--text-muted)]">
               {isThai
@@ -43,7 +43,7 @@ export async function SubmissionsPage({ locale }: { locale: Locale }) {
           <section className="mt-10 rounded-[var(--radius-lg)] border border-dashed border-[var(--border)] bg-[var(--surface)] p-12 text-center">
             <FilePenLine className="mx-auto size-10 text-[var(--text-muted)]" />
             <h2 className="mt-4 text-xl font-black">
-              {isThai ? 'ยังไม่มีรายการ' : 'No submissions yet'}
+              {isThai ? 'ยังไม่มีรายการที่ฉันส่ง' : 'No submissions yet'}
             </h2>
             <p className="mt-2 text-sm text-[var(--text-muted)]">
               {isThai
@@ -102,7 +102,16 @@ export async function SubmissionsPage({ locale }: { locale: Locale }) {
                   </div>
                   <div className="flex items-center gap-2">
                     {['DRAFT', 'PENDING', 'NEEDS_REVISION'].includes(submission.status) && (
-                      <DeleteSubmissionButton id={submission.id} locale={locale} />
+                      <>
+                        <a
+                          href={withLocale(locale, `/my-submissions/${submission.id}`)}
+                          className="inline-flex min-h-10 items-center gap-2 rounded-md border border-[var(--border)] bg-[var(--surface)] px-4 text-sm font-semibold text-[var(--forest)] hover:bg-[var(--forest-soft)]"
+                        >
+                          <Pencil className="size-4" />
+                          {isThai ? 'แก้ไข' : 'Edit'}
+                        </a>
+                        <DeleteSubmissionButton id={submission.id} locale={locale} />
+                      </>
                     )}
                   </div>
                 </article>

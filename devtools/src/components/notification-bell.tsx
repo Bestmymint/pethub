@@ -3,6 +3,7 @@
 import { Bell, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { NotificationSeverityIcon } from '@/components/notification-severity-icon';
 import { markNotificationRead } from '@/features/user/actions';
 import type { Locale } from '@/lib/i18n';
 import { withLocale } from '@/lib/i18n';
@@ -102,7 +103,13 @@ export function NotificationBell({ locale, enabled }: { locale: Locale; enabled:
           aria-live="polite"
           className="fixed top-20 right-4 z-[80] flex w-[min(22rem,calc(100vw-2rem))] items-start gap-3 rounded-2xl border border-[var(--border)] bg-[var(--surface)] p-4 shadow-lg"
         >
-          <Bell className="mt-0.5 size-5 shrink-0 text-[var(--forest)]" aria-hidden="true" />
+          {/* Only chat notifications open this popup, so the neutral icon fits. */}
+          <NotificationSeverityIcon
+            severity="info"
+            locale={locale}
+            plain
+            className="mt-0.5 size-5 shrink-0"
+          />
           <a
             className="min-w-0 flex-1 text-sm"
             href={href}

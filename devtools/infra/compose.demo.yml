@@ -21,7 +21,7 @@ x-demo-env: &demo-env
   SMTP_PORT: '1025'
   SMTP_SECURE: 'false'
   MAIL_FROM: PetHub Demo <noreply@example.com>
-  NOMINATIM_CONTACT_EMAIL: demo@example.com
+  NOMINATIM_CONTACT_EMAIL: ${DEMO_NOMINATIM_CONTACT:-https://github.com/Bestmymint/pethub}
   SEED_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-demo-admin@example.com}
   SEED_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-DemoAdmin-ChangeMe-2026}
   SEED_USER_EMAIL: ${DEMO_USER_EMAIL:-demo-user@example.com}
@@ -46,8 +46,10 @@ services:
   mailpit:
     image: axllent/mailpit:v1.27.4
     restart: unless-stopped
+    # Published ports (here and on the app) default to 0.0.0.0 so the stack is reachable through the course
+    # box's port forwards. Set DEMO_BIND_ADDRESS=127.0.0.1 to keep it private when running directly on a machine.
     ports:
-      - '127.0.0.1:${DEMO_MAILPIT_PORT:-8025}:8025'
+      - '${DEMO_BIND_ADDRESS:-0.0.0.0}:${DEMO_MAILPIT_PORT:-8025}:8025'
     healthcheck:
       test: ['CMD', '/mailpit', 'readyz']
       interval: 3s
@@ -134,8 +136,9 @@ services:
       # DEMO ONLY: disables every application rate limit (auth, uploads, reviews, meetups; not the geocode throttle) so demos and
       # smoke tests are never throttled. Set DEMO_RATE_LIMIT_DISABLED=false to turn the limits back on.
       RATE_LIMIT_DISABLED: ${DEMO_RATE_LIMIT_DISABLED:-true}
+    # Default 0.0.0.0 for the course box's port forwards; DEMO_BIND_ADDRESS=127.0.0.1 keeps it private.
     ports:
-      - '127.0.0.1:${DEMO_APP_PORT:-3000}:3000'
+      - '${DEMO_BIND_ADDRESS:-0.0.0.0}:${DEMO_APP_PORT:-3000}:3000'
     healthcheck:
       test:
         - CMD
