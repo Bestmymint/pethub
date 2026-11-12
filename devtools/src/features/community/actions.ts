@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import type { ActionResult } from '@/lib/action-result';
 import { requireUser } from '@/lib/auth-guards';
+import { recomputePlaceRating } from '@/lib/place-rating';
 import { prisma } from '@/lib/prisma';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { calculateTrustScore } from '@/lib/trust-score';
@@ -70,15 +71,7 @@ export async function saveReview(
         })),
       });
     }
-    const aggregate = await tx.review.aggregate({
-      where: { placeId: place.id, isHidden: false, deletedAt: null },
-      _avg: { rating: true },
-      _count: true,
-    });
-    await tx.place.update({
-      where: { id: place.id },
-      data: { averageRating: aggregate._avg.rating ?? 0, reviewCount: aggregate._count },
-    });
+    await recomputePlaceRating(tx, place.id);
     return saved;
   });
   revalidatePath(`/places/${place.slug}`);
