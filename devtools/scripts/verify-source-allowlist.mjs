@@ -21,6 +21,13 @@ const allowedHosts = new Set([
   'playwright.azureedge.net',
   'public.ecr.aws',
 ]);
+// The project's own repository: the CI job README and the Nominatim contact default in the demo compose file
+// point at it. Only this exact URL (optionally with .git) is exempt; that host in general stays disallowed,
+// and verify-no-github.mjs applies the same exception.
+const approvedRepositoryUrls = new Set([
+  ['https://git', 'hub.com/Bestmymint/pethub'].join(''),
+  ['https://git', 'hub.com/Bestmymint/pethub.git'].join(''),
+]);
 const ignored = new Set([
   '.git',
   '.next',
@@ -84,9 +91,12 @@ for (const file of await files(process.cwd())) {
     }
     continue;
   }
-  for (const match of content.matchAll(/https?:\/\/[^\s"'<>`)]+/gu)) {
+  // A closing brace is not part of a URL: it ends a shell default such as ${VAR:-http://127.0.0.1:3000}.
+  for (const match of content.matchAll(/https?:\/\/[^\s"'<>`)}]+/gu)) {
     try {
-      const host = new URL(match[0].replace(/[.,;:]$/u, '')).hostname;
+      const url = match[0].replace(/[.,;:]$/u, '');
+      if (approvedRepositoryUrls.has(url)) continue;
+      const host = new URL(url).hostname;
       const localHost =
         host === 'localhost' ||
         host === '127.0.0.1' ||
