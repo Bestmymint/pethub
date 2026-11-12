@@ -1,4 +1,5 @@
 import type { Locale } from '@/lib/i18n';
+import { MAX_PINNED_MESSAGES } from './chat-pins';
 
 const messages: Record<string, [string, string]> = {
   MEETUP_LOGIN_REQUIRED: ['กรุณาเข้าสู่ระบบก่อน', 'Please sign in first.'],
@@ -21,6 +22,14 @@ const messages: Record<string, [string, string]> = {
   ],
   MEETUP_REQUEST_CONFLICT: ['คำขอขัดแย้ง กรุณาลองใหม่', 'Request conflict. Please retry.'],
   MEETUP_FORBIDDEN: ['คุณไม่มีสิทธิ์ทำรายการนี้', 'You cannot perform this action.'],
+  MEETUP_PIN_LIMIT: [
+    `ปักหมุดได้สูงสุด ${MAX_PINNED_MESSAGES} ข้อความ กรุณาเลิกปักหมุดข้อความอื่นก่อน`,
+    `You can pin up to ${MAX_PINNED_MESSAGES} messages. Unpin another one first.`,
+  ],
+  MEETUP_MESSAGE_NOT_FOUND: ['ไม่พบข้อความนี้', 'Message not found.'],
+  MEETUP_CHAT_READ_ONLY: ['แชตนี้อยู่ในโหมดอ่านอย่างเดียว', 'This chat is read-only.'],
+  MEETUP_REPLY_NOT_FOUND: ['ไม่พบข้อความที่ตอบกลับ', 'The message you replied to was not found.'],
+  MEETUP_INVALID_TARGET: ['รายงานรายการนี้ไม่ได้', 'This item cannot be reported.'],
 };
 
 export function meetupActionError(error: string | undefined, locale: Locale) {
