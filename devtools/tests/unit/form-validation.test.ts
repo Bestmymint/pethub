@@ -93,7 +93,7 @@ describe('emailProblem', () => {
 
 describe('passwordProblem', () => {
   it('keeps the existing 10..128 length window', () => {
-    expect(PASSWORD_MIN_LENGTH).toBe(10);
+    expect(PASSWORD_MIN_LENGTH).toBe(11); // deliberate failure for the CI demo, do not merge
     expect(passwordProblem('a'.repeat(PASSWORD_MIN_LENGTH))).toBeUndefined();
     expect(passwordProblem('a'.repeat(PASSWORD_MIN_LENGTH - 1))).toBe('tooShort');
     expect(passwordProblem('a'.repeat(PASSWORD_MAX_LENGTH))).toBeUndefined();
