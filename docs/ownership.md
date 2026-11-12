@@ -14,6 +14,9 @@ gh pr list --state merged --json number,title,author,mergedAt
 
 ## Commits on `main`
 
+The counts are as of the merge of pull request #10. Later commits (for example the documentation in pull
+request #11) are not included; run the `git shortlog` command above for the current numbers.
+
 | Author name in git        | Commits | What they are                                                           |
 | ------------------------- | ------- | ----------------------------------------------------------------------- |
 | `athikarn5678`            | 34      | Non-merge commits (features, fixes, docs, chores).                      |
