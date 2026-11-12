@@ -1,4 +1,3 @@
-import type { Locale } from '@/lib/i18n';
 import { additionalCategories } from './additional-categories';
 
 export const categoryDefinitions = [
@@ -139,10 +138,6 @@ export type MapPoint = Pick<
   | 'latitude'
   | 'longitude'
 >;
-
-export function localize(locale: Locale, value: Pick<PlaceSummary, 'nameTh' | 'nameEn'>) {
-  return locale === 'th' ? value.nameTh : value.nameEn;
-}
 
 export interface MapFilters {
   query?: string;

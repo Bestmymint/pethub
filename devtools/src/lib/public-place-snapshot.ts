@@ -71,5 +71,3 @@ export const publicPlaceSnapshotSchema = z.object({
     }),
   ),
 });
-
-export type PublicPlaceSnapshot = z.infer<typeof publicPlaceSnapshotSchema>;
