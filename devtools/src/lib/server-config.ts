@@ -38,3 +38,11 @@ export function productionConfigurationIssues() {
   }
   return [...new Set(issues)];
 }
+
+/**
+ * Demo/testing escape hatch for the app's own rate limits (not the Nominatim geocode throttle): only the exact string "true" turns every application rate limit off.
+ * Unset, empty or any other value keeps the limits on.
+ */
+export function rateLimitDisabled(env: Record<string, string | undefined> = process.env) {
+  return env.RATE_LIMIT_DISABLED === 'true';
+}

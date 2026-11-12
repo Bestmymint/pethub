@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
+import { rateLimitDisabled } from '@/lib/server-config';
 
 export async function consumeRateLimit({
   key,
@@ -14,6 +15,9 @@ export async function consumeRateLimit({
   windowMs: number;
   client?: Prisma.TransactionClient;
 }) {
+  if (rateLimitDisabled()) {
+    return { allowed: true, remaining: limit, expiresAt: new Date(Date.now() + windowMs) };
+  }
   const now = new Date();
   const windowStart = new Date(Math.floor(now.getTime() / windowMs) * windowMs);
   const expiresAt = new Date(windowStart.getTime() + windowMs);

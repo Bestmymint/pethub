@@ -1,0 +1,1 @@
+postgresql://demo:demo@localhost:5432/pawmap?schema=public

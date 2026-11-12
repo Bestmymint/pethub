@@ -5,7 +5,7 @@ import { nextCookies } from 'better-auth/next-js';
 import { getTrustedOrigins } from '@/lib/auth-origins';
 import { sendPasswordResetEmail } from '@/lib/mailer';
 import { prisma } from '@/lib/prisma';
-import { requiredEnvironment } from '@/lib/server-config';
+import { rateLimitDisabled, requiredEnvironment } from '@/lib/server-config';
 
 const authBaseUrl = process.env.BETTER_AUTH_URL ?? 'http://localhost:3000';
 
@@ -37,7 +37,7 @@ export const auth = betterAuth({
     useSecureCookies: process.env.NODE_ENV === 'production',
   },
   rateLimit: {
-    enabled: true,
+    enabled: !rateLimitDisabled(),
     window: 15 * 60,
     max: 100,
     customRules: {
