@@ -5,12 +5,12 @@
 #
 # Checks: readiness, login as the seeded demo user, PNG upload to the S3-compatible store,
 # byte-for-byte read-back through the app's media endpoint, and rejection of a non-image upload.
-# Overrides: SMOKE_BASE_URL (or DEMO_APP_PORT), DEMO_USER_EMAIL, DEMO_USER_PASSWORD, SMOKE_WAIT_SECONDS.
+# Overrides: SMOKE_BASE_URL (or DEMO_APP_PORT), DEMO_USER_EMAIL, DEMO_PASSWORD, SMOKE_WAIT_SECONDS.
 set -eu
 
 BASE="${SMOKE_BASE_URL:-${SMOKE_SCHEME:-http}://127.0.0.1:${DEMO_APP_PORT:-3000}}"
 EMAIL="${DEMO_USER_EMAIL:-demo-user@example.com}"
-PASSWORD="${DEMO_USER_PASSWORD:-DemoUser-ChangeMe-2026}"
+PASSWORD="${DEMO_PASSWORD:-PetHub-Demo-2026}"
 WAIT="${SMOKE_WAIT_SECONDS:-180}"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT

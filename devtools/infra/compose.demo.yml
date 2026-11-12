@@ -23,9 +23,9 @@ x-demo-env: &demo-env
   MAIL_FROM: PetHub Demo <noreply@example.com>
   NOMINATIM_CONTACT_EMAIL: ${DEMO_NOMINATIM_CONTACT:-https://github.com/Bestmymint/pethub}
   SEED_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-demo-admin@example.com}
-  SEED_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-DemoAdmin-ChangeMe-2026}
+  SEED_ADMIN_PASSWORD: ${DEMO_PASSWORD:-PetHub-Demo-2026}
   SEED_USER_EMAIL: ${DEMO_USER_EMAIL:-demo-user@example.com}
-  SEED_USER_PASSWORD: ${DEMO_USER_PASSWORD:-DemoUser-ChangeMe-2026}
+  SEED_USER_PASSWORD: ${DEMO_PASSWORD:-PetHub-Demo-2026}
 
 services:
   postgres:
