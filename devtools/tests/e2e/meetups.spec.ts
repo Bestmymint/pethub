@@ -409,7 +409,8 @@ test('member joins, chats live, leaves, and loses access while public visitors c
     });
     await expect(imageMessage).toBeVisible();
     host.once('dialog', (dialog) => void dialog.accept());
-    await imageMessage.getByRole('button', { name: 'Delete' }).click();
+    await imageMessage.getByRole('button', { name: 'Message actions' }).click();
+    await host.getByRole('menuitem', { name: 'Delete' }).click();
     await expect
       .poll(() => host.evaluate(async (url) => (await fetch(url)).status, mediaUrl))
       .toBe(404);

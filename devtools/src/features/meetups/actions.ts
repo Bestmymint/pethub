@@ -12,6 +12,7 @@ import { publicPlaceWhere } from '@/lib/place-repository';
 import { consumeRateLimit } from '@/lib/rate-limit';
 import { createMeetupSchema, canWriteMeetupChat, canAccessMeetupChat } from './service';
 import { notifyMeetupChat } from './chat-notifications';
+import { pinLimitReached } from './chat-pins';
 
 async function actor() {
   const session = await getCurrentSession();
@@ -598,6 +599,9 @@ export async function sendMeetupMessage(
     return { ok: false, formError: 'MEETUP_CHAT_READ_ONLY' };
   if (important && meetup.hostId !== user.id && user.role !== 'ADMIN')
     return { ok: false, formError: 'MEETUP_FORBIDDEN' };
+  // An important message is created pinned, so it counts against the pin limit.
+  if (important && pinLimitReached(await countPinnedMessages(prisma, id)))
+    return { ok: false, formError: 'MEETUP_PIN_LIMIT' };
   if (replyToId) {
     const reply = await prisma.meetupMessage.findFirst({
       where: { id: replyToId, meetupId: id, deletedAt: null },
@@ -669,6 +673,12 @@ export async function deleteMeetupMessage(id: string, messageId: string): Promis
   return { ok: true, data: undefined };
 }
 
+function countPinnedMessages(client: Prisma.TransactionClient | typeof prisma, meetupId: string) {
+  return client.meetupMessage.count({
+    where: { meetupId, pinnedAt: { not: null }, deletedAt: null },
+  });
+}
+
 export async function pinMeetupMessage(
   id: string,
   messageId: string,
@@ -679,13 +689,28 @@ export async function pinMeetupMessage(
   const meetup = await prisma.meetup.findFirst({ where: { id, deletedAt: null } });
   if (!meetup || (meetup.hostId !== user.id && user.role !== 'ADMIN'))
     return { ok: false, formError: 'MEETUP_FORBIDDEN' };
-  const updated = await prisma.meetupMessage.updateMany({
-    where: { id: messageId, meetupId: id, deletedAt: null },
-    data: { pinnedAt: pinned ? new Date() : null },
+  if (!pinned) {
+    const updated = await prisma.meetupMessage.updateMany({
+      where: { id: messageId, meetupId: id, deletedAt: null },
+      data: { pinnedAt: null },
+    });
+    return updated.count
+      ? { ok: true, data: undefined }
+      : { ok: false, formError: 'MEETUP_MESSAGE_NOT_FOUND' };
+  }
+  // Count and update under a lock on the meetup row, so two concurrent pins cannot both pass the limit.
+  return prisma.$transaction(async (tx): Promise<ActionResult> => {
+    await tx.$queryRaw`SELECT id FROM meetups WHERE id = ${id} FOR UPDATE`;
+    const target = await tx.meetupMessage.findFirst({
+      where: { id: messageId, meetupId: id, deletedAt: null },
+      select: { pinnedAt: true },
+    });
+    if (!target) return { ok: false, formError: 'MEETUP_MESSAGE_NOT_FOUND' };
+    if (pinLimitReached(await countPinnedMessages(tx, id), target.pinnedAt !== null))
+      return { ok: false, formError: 'MEETUP_PIN_LIMIT' };
+    await tx.meetupMessage.update({ where: { id: messageId }, data: { pinnedAt: new Date() } });
+    return { ok: true, data: undefined };
   });
-  return updated.count
-    ? { ok: true, data: undefined }
-    : { ok: false, formError: 'MEETUP_MESSAGE_NOT_FOUND' };
 }
 
 const reportSchema = z.object({
