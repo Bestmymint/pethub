@@ -1,6 +1,8 @@
 import Link from 'next/link';
 import { Prisma } from '@prisma/client';
 import { requireImportAdmin } from '@/features/admin/import-auth';
+import { Button } from '@/components/ui/button';
+import { Input, Select } from '@/components/ui/field';
 import { prisma } from '@/lib/prisma';
 import { AdminShell } from '@/features/admin/admin-shell';
 import { ImportBulkReview } from '@/features/admin/import-bulk-review';
@@ -44,35 +46,31 @@ export default async function ImportsPage({
       title="ตรวจข้อมูลนำเข้า"
       description="รายการนำเข้ายังไม่ปรากฏบนแผนที่จนกว่าจะตรวจและอนุมัติ ไม่แก้ไขสถานที่เดิมอัตโนมัติ"
     >
-      <form className="mb-5 flex flex-wrap items-end gap-3">
-        <label>
+      <form className="mb-6 flex flex-wrap items-end gap-3 rounded-2xl bg-[var(--surface)] p-4">
+        <label className="grid gap-1.5 text-sm font-bold">
           ค้นหา
-          <input name="q" defaultValue={params.q} className="block rounded-lg border p-2" />
+          <Input name="q" defaultValue={params.q} className="sm:w-64" />
         </label>
-        <label>
+        <label className="grid gap-1.5 text-sm font-bold">
           สถานะ
-          <select name="status" defaultValue={status} className="block rounded-lg border p-2">
+          <Select name="status" defaultValue={status} className="sm:w-44">
             <option value="PENDING">รอตรวจ</option>
             <option value="APPROVED">อนุมัติแล้ว</option>
             <option value="REJECTED">ไม่อนุมัติ</option>
-          </select>
+          </Select>
         </label>
-        <label>
+        <label className="grid gap-1.5 text-sm font-bold">
           จังหวัด
-          <select
-            name="province"
-            defaultValue={params.province ?? ''}
-            className="block rounded-lg border p-2"
-          >
+          <Select name="province" defaultValue={params.province ?? ''} className="sm:w-52">
             <option value="">ทั้งหมด</option>
             {provinces.map((item) => (
               <option key={item.code} value={item.code}>
                 {item.nameTh}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <button className="rounded-lg border px-4 py-2">กรอง</button>
+        <Button type="submit">กรอง</Button>
       </form>
       <p className="mb-3">
         {total.toLocaleString('th-TH')} รายการ • หน้า {page}
@@ -100,7 +98,11 @@ export default async function ImportsPage({
             )}
           </article>
         ))}
-        {!rows.length && <p>ไม่มีรายการในตัวกรองนี้</p>}
+        {!rows.length && (
+          <p className="rounded-2xl border border-dashed bg-[var(--surface)]/50 p-10 text-center">
+            ไม่มีรายการในตัวกรองนี้
+          </p>
+        )}
       </div>
       <nav aria-label="หน้ารายการนำเข้า" className="mt-5 flex gap-5">
         {page > 1 && <Link href={href(page - 1)}>ก่อนหน้า</Link>}

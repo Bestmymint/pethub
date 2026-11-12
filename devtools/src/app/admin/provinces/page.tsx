@@ -14,9 +14,9 @@ export default async function ProvincesPage() {
           <thead className="bg-[var(--sage)] text-left text-sm">
             <tr>
               <th className="p-3">รหัส</th>
-              <th>ชื่อไทย</th>
-              <th>English</th>
-              <th></th>
+              <th className="p-3">ชื่อไทย</th>
+              <th className="p-3">English</th>
+              <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>

@@ -1,3 +1,4 @@
+import { Badge } from '@/components/ui/badge';
 import { AdminShell } from '@/features/admin/admin-shell';
 import { UserAction } from '@/features/admin/user-action';
 import { prisma } from '@/lib/prisma';
@@ -29,8 +30,16 @@ export default async function UsersPage() {
               <tr key={user.id} className="border-t border-[var(--border)]">
                 <td className="p-4 font-bold">{user.name}</td>
                 <td>{user.email}</td>
-                <td>{user.role}</td>
-                <td>{user.suspendedAt ? 'SUSPENDED' : 'ACTIVE'}</td>
+                <td>
+                  <Badge tone={user.role === 'ADMIN' ? 'coral' : 'neutral'}>
+                    {user.role === 'ADMIN' ? 'ผู้ดูแลระบบ' : 'ผู้ใช้'}
+                  </Badge>
+                </td>
+                <td>
+                  <Badge tone={user.suspendedAt ? 'red' : 'emerald'}>
+                    {user.suspendedAt ? 'ถูกระงับ' : 'ใช้งานอยู่'}
+                  </Badge>
+                </td>
                 <td className="p-3 text-right">
                   <UserAction id={user.id} suspended={Boolean(user.suspendedAt)} />
                 </td>
