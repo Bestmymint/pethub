@@ -66,13 +66,21 @@ configuration, and no SSH key setup for the application itself.
 
 ### 1. Start the course container (on your machine)
 
-The box must publish the app port (and Mailpit's, to read reset mails). Start it as in the Jenkins lab, with
-Mailpit added:
+The box must publish the ssh port, the app port 3000, and Mailpit's port 8025 (to read reset mails):
 
 ```bash
-docker run -dit --name devtools --privileged --tmpfs /run -p 2222:22 -p 8080:8080 -p 3000:3000 -p 8025:8025 -p 8000:8000 tuchsanai/devtools:2569_1
+docker run -dit --name devtools --privileged -p 2222:22 -p 3000:3000 -p 8025:8025 tuchsanai/devtools:2569_1
 ssh root@localhost -p 2222        # password: passwd
 ```
+
+If you also run Jenkins inside the box as in the course lab, add `-p 8080:8080`:
+
+```bash
+docker run -dit --name devtools --privileged -p 2222:22 -p 8080:8080 -p 3000:3000 -p 8025:8025 tuchsanai/devtools:2569_1
+```
+
+The PetHub demo does not use port 8080, and the pipeline in this repository uses a separate Jenkins
+container (see [devtools/infra/ci/README.md](devtools/infra/ci/README.md)).
 
 ### 2. Start PetHub (inside the container)
 
@@ -128,13 +136,12 @@ starts from an empty database and imports everything again.
 
 ### Troubleshooting
 
-| Problem                                                                       | Cause and fix                                                                                                                                                                                                                                                |
-| ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `docker run` fails: port 8080 is already in use on the host                   | The command publishes 8080 because the Jenkins lab uses it. The demo stack does not use port 8080 (`infra/compose.demo.yml`), so remove `-p 8080:8080` from the `docker run` line; this variant has not been run by the author. Or stop whatever holds 8080. |
-| The page does not load at `127.0.0.1:3000`, or the reset link does not log in | Use `http://localhost:3000` (see above).                                                                                                                                                                                                                     |
-| Do I need to set up SSH keys or a `.env`?                                     | No. The key setup in [`devtools/infra/ci/README.md`](devtools/infra/ci/README.md) is only for the Jenkins pipeline. The demo stack takes all its settings from `infra/compose.demo.yml`.                                                                     |
-| The first start looks stuck                                                   | The first build compiles the app and imports 3,091 places (about 4-5 minutes). Watch `docker compose -f infra/compose.demo.yml ps` and `docker compose -f infra/compose.demo.yml logs -f setup app`.                                                         |
-| Port 3000 or 8025 is taken                                                    | `DEMO_APP_PORT` and `DEMO_MAILPIT_PORT` change the published ports (see [Other demo settings](#other-demo-settings)). This has not been run in the course container.                                                                                         |
+| Problem                                                                       | Cause and fix                                                                                                                                                                                        |
+| ----------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The page does not load at `127.0.0.1:3000`, or the reset link does not log in | Use `http://localhost:3000` (see above).                                                                                                                                                             |
+| Do I need to set up SSH keys or a `.env`?                                     | No. The key setup in [`devtools/infra/ci/README.md`](devtools/infra/ci/README.md) is only for the Jenkins pipeline. The demo stack takes all its settings from `infra/compose.demo.yml`.             |
+| The first start looks stuck                                                   | The first build compiles the app and imports 3,091 places (about 4-5 minutes). Watch `docker compose -f infra/compose.demo.yml ps` and `docker compose -f infra/compose.demo.yml logs -f setup app`. |
+| Port 3000 or 8025 is taken                                                    | `DEMO_APP_PORT` and `DEMO_MAILPIT_PORT` change the published ports (see [Other demo settings](#other-demo-settings)). This has not been run in the course container.                                 |
 
 ### Running the stack directly (without the course container)
 
