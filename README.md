@@ -25,14 +25,44 @@ cd devtools
 docker compose -f infra/compose.demo.yml up -d --build
 ```
 
-The first run builds the app image and imports the 3,091 public places, so it takes several minutes. When
-`docker compose -f infra/compose.demo.yml ps` shows `app` as `healthy`:
+The first run builds the app image and imports the 3,091 public places: it takes about 4-5 minutes and needs
+roughly 10 GB of free disk (images and build cache). When `docker compose -f infra/compose.demo.yml ps` shows
+`app` as `healthy`:
 
-| What                           | URL                                          |
-| ------------------------------ | -------------------------------------------- |
-| App                            | <http://localhost:3000> (bound to 127.0.0.1) |
-| Readiness                      | <http://localhost:3000/api/health/ready>     |
-| Mailpit (password-reset mails) | <http://localhost:8025> (bound to 127.0.0.1) |
+| What                           | URL                                      |
+| ------------------------------ | ---------------------------------------- |
+| App                            | <http://localhost:3000>                  |
+| Readiness                      | <http://localhost:3000/api/health/ready> |
+| Mailpit (password-reset mails) | <http://localhost:8025>                  |
+
+Use `localhost`, not `127.0.0.1`: the demo's app origin is `http://localhost:3000`, so password-reset links
+point there and the login cookie is set for that host. (`127.0.0.1:3000` also passes the origin check, but a
+session started there does not carry over to those links.)
+
+The app and Mailpit ports are published on `0.0.0.0` by default so they work through the course box's port
+forwards. When you run the stack directly on a machine, keep it private to that machine with
+`DEMO_BIND_ADDRESS=127.0.0.1 docker compose -f infra/compose.demo.yml up -d --build`.
+
+### Using the course box
+
+The box must publish the app port (and Mailpit's, to read reset mails). Start it as in the Jenkins lab, with
+Mailpit added:
+
+```bash
+docker run -dit --name devtools --privileged --tmpfs /run -p 2222:22 -p 8080:8080 -p 3000:3000 -p 8025:8025 -p 8000:8000 tuchsanai/devtools:2569_1
+ssh root@localhost -p 2222        # password: passwd
+```
+
+Inside the box:
+
+```bash
+mkdir -p ~/labwork && cd ~/labwork
+git clone https://github.com/Bestmymint/pethub.git
+cd pethub/devtools
+docker compose -f infra/compose.demo.yml up -d --build
+```
+
+Then open <http://localhost:3000> and <http://localhost:8025> on the machine that runs the box.
 
 Stack: PostgreSQL 17, Mailpit, SeaweedFS (S3-compatible, internal only), a one-shot `s3-init` (creates the
 `pawmap-media` bucket), a one-shot `setup` (migrations, reference data, demo accounts, public places), the app
