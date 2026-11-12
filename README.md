@@ -158,15 +158,15 @@ so they exist right after `docker compose up`, and setup adds any missing one to
 next `up`. The defaults are in the `x-demo-env` block of
 [`devtools/infra/compose.demo.yml`](devtools/infra/compose.demo.yml).
 
-| Account                  | Role  | What it is for                                                                            |
-| ------------------------ | ----- | ----------------------------------------------------------------------------------------- |
-| `demo-admin@example.com` | Admin | The admin console: report lists, the sample-data buttons, moderation.                     |
-| `demo-user@example.com`  | User  | A normal member. Hosts the Meetup "ฝึกคำสั่งพื้นฐานน้องหมากลางสวน".                       |
-| `demo-user2@example.com` | User  | A second member, so two people can really talk. Hosts the Meetup "เคล็ดลับดูแลแมวสูงวัย". |
+| Account                  | Role  | Password           | What it is for                                                                            |
+| ------------------------ | ----- | ------------------ | ----------------------------------------------------------------------------------------- |
+| `demo-admin@example.com` | Admin | `PetHub-Demo-2026` | The admin console: report lists, the sample-data buttons, moderation.                     |
+| `demo-user@example.com`  | User  | `PetHub-Demo-2026` | A normal member. Hosts the Meetup "ฝึกคำสั่งพื้นฐานน้องหมากลางสวน".                       |
+| `demo-user2@example.com` | User  | `PetHub-Demo-2026` | A second member, so two people can really talk. Hosts the Meetup "เคล็ดลับดูแลแมวสูงวัย". |
 
 > **Demo only.** Every default in that compose file (database password, `BETTER_AUTH_SECRET`, S3 keys,
 > account passwords) is public in this repository. Override all `DEMO_*` variables for anything beyond a local
-> demo.
+> demo. These passwords are public defaults for the local demo and must not be reused anywhere else.
 
 Every account has sample pets (dogs, cats and a rabbit, with Thai names), which show on the pets page and, for
 the two members, on their profile in a Meetup chat. These pets belong to the accounts and are kept when the
