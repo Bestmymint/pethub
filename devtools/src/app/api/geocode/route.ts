@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const query = parsed.data.q.toLocaleLowerCase('th');
   const cached = cache.get(query);
   if (cached && cached.expiresAt > Date.now()) return NextResponse.json(cached.value);
+  // Not affected by RATE_LIMIT_DISABLED: this protects the Nominatim usage policy (max 1 request/second).
   if (Date.now() - lastRequestAt < 1_000) {
     return NextResponse.json(
       { error: 'กรุณารอสักครู่ก่อนค้นหาที่อยู่ครั้งถัดไป' },

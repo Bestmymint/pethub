@@ -1,0 +1,170 @@
+# PetHub one-command demo stack (separate from compose.yml, which belongs to the Jenkins blue/green deploy).
+#
+#   docker compose -f infra/compose.demo.yml up -d --build        (run from the devtools/ directory)
+#
+# Every value below uses ${VAR:-default}. The defaults are THROWAWAY, DEMO-ONLY values that are public in this
+# repository. Override all of them (DEMO_* variables, or an --env-file) for anything that is not a local demo.
+# The app origin is built from DEMO_APP_SCHEME/HOST/PORT so it always matches the published port.
+name: pethub-demo
+
+x-demo-env: &demo-env
+  DATABASE_URL: postgresql://${DEMO_DB_USER:-pawmap}:${DEMO_DB_PASSWORD:-demo-only-db-password}@postgres:5432/pawmap?schema=public
+  BETTER_AUTH_SECRET: ${DEMO_AUTH_SECRET:-demo-only-better-auth-secret-change-me-0123456789}
+  BETTER_AUTH_URL: ${DEMO_APP_SCHEME:-http}://${DEMO_APP_HOST:-localhost}:${DEMO_APP_PORT:-3000}
+  APP_ORIGIN: ${DEMO_APP_SCHEME:-http}://${DEMO_APP_HOST:-localhost}:${DEMO_APP_PORT:-3000}
+  S3_ENDPOINT: http://seaweedfs:8333
+  S3_REGION: ap-southeast-1
+  S3_BUCKET: pawmap-media
+  S3_ACCESS_KEY: ${DEMO_S3_ACCESS_KEY:-demo-only-s3-access-key}
+  S3_SECRET_KEY: ${DEMO_S3_SECRET_KEY:-demo-only-s3-secret-key-0123456789}
+  SMTP_HOST: mailpit
+  SMTP_PORT: '1025'
+  SMTP_SECURE: 'false'
+  MAIL_FROM: PetHub Demo <noreply@example.com>
+  NOMINATIM_CONTACT_EMAIL: demo@example.com
+  SEED_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-demo-admin@example.com}
+  SEED_ADMIN_PASSWORD: ${DEMO_ADMIN_PASSWORD:-DemoAdmin-ChangeMe-2026}
+  SEED_USER_EMAIL: ${DEMO_USER_EMAIL:-demo-user@example.com}
+  SEED_USER_PASSWORD: ${DEMO_USER_PASSWORD:-DemoUser-ChangeMe-2026}
+
+services:
+  postgres:
+    image: postgres:17-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: pawmap
+      POSTGRES_USER: ${DEMO_DB_USER:-pawmap}
+      POSTGRES_PASSWORD: ${DEMO_DB_PASSWORD:-demo-only-db-password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U "$$POSTGRES_USER" -d pawmap']
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  mailpit:
+    image: axllent/mailpit:v1.27.4
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${DEMO_MAILPIT_PORT:-8025}:8025'
+    healthcheck:
+      test: ['CMD', '/mailpit', 'readyz']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  # S3-compatible object storage. Not published to the host: only the app and s3-init reach it.
+  seaweedfs:
+    image: chrislusf/seaweedfs:4.53
+    restart: unless-stopped
+    command: ['server', '-s3', '-dir=/data']
+    environment:
+      AWS_ACCESS_KEY_ID: ${DEMO_S3_ACCESS_KEY:-demo-only-s3-access-key}
+      AWS_SECRET_ACCESS_KEY: ${DEMO_S3_SECRET_KEY:-demo-only-s3-secret-key-0123456789}
+    volumes:
+      - s3-data:/data
+    healthcheck:
+      test: ['CMD-SHELL', 'nc -z 127.0.0.1 8333']
+      interval: 3s
+      timeout: 3s
+      retries: 40
+
+  # One-shot and idempotent: creates the bucket only when it does not exist yet.
+  s3-init:
+    image: amazon/aws-cli:latest
+    restart: 'no'
+    depends_on:
+      seaweedfs:
+        condition: service_healthy
+    entrypoint: ['sh', '-c']
+    command:
+      - |
+        for attempt in $$(seq 1 30); do
+          if aws --endpoint-url http://seaweedfs:8333 s3api head-bucket --bucket pawmap-media 2>/dev/null \
+             || aws --endpoint-url http://seaweedfs:8333 s3 mb s3://pawmap-media; then
+            echo "bucket pawmap-media is ready"; exit 0
+          fi
+          sleep 2
+        done
+        echo "could not create bucket pawmap-media" >&2; exit 1
+    environment:
+      AWS_ACCESS_KEY_ID: ${DEMO_S3_ACCESS_KEY:-demo-only-s3-access-key}
+      AWS_SECRET_ACCESS_KEY: ${DEMO_S3_SECRET_KEY:-demo-only-s3-secret-key-0123456789}
+      AWS_DEFAULT_REGION: ap-southeast-1
+
+  # One-shot and idempotent: migrate deploy, reference seed, demo accounts, 3,091 public places (all upserts).
+  setup:
+    build:
+      context: ..
+      dockerfile: infra/demo/Dockerfile.tools
+    image: pethub-demo-tools:local
+    restart: 'no'
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment: *demo-env
+
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+      target: runtime
+      args:
+        NEXT_PUBLIC_TERRAIN_URL: ${DEMO_TERRAIN_URL:-https://tiles.mapterhorn.com/tilejson.json}
+      # `next build` needs these two values to load modules; they are build-only placeholders and are not
+      # stored in the image (BuildKit secret mounts). The real runtime values come from `environment` below.
+      secrets:
+        - database_url
+        - better_auth_secret
+    image: pethub-demo-app:local
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mailpit:
+        condition: service_healthy
+      s3-init:
+        condition: service_completed_successfully
+      setup:
+        condition: service_completed_successfully
+    environment:
+      <<: *demo-env
+      PAWMAP_RELEASE: demo
+      # DEMO ONLY: disables every application rate limit (auth, uploads, reviews, meetups; not the geocode throttle) so demos and
+      # smoke tests are never throttled. Set DEMO_RATE_LIMIT_DISABLED=false to turn the limits back on.
+      RATE_LIMIT_DISABLED: ${DEMO_RATE_LIMIT_DISABLED:-true}
+    ports:
+      - '127.0.0.1:${DEMO_APP_PORT:-3000}:3000'
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health/ready').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  # Meetup status/reminder worker (same image as the app).
+  worker:
+    image: pethub-demo-app:local
+    pull_policy: never
+    restart: unless-stopped
+    depends_on:
+      app:
+        condition: service_healthy
+    command: ['node', 'workers/meetup-worker.mjs']
+    environment:
+      DATABASE_URL: postgresql://${DEMO_DB_USER:-pawmap}:${DEMO_DB_PASSWORD:-demo-only-db-password}@postgres:5432/pawmap?schema=public
+
+secrets:
+  database_url:
+    file: ./demo/build-inputs/database_url
+  better_auth_secret:
+    file: ./demo/build-inputs/better_auth_secret
+
+volumes:
+  postgres-data:
+  s3-data:
