@@ -1,6 +1,7 @@
 import { AdminShell } from '@/features/admin/admin-shell';
 import { ReportAction } from '@/features/admin/report-action';
 import { prisma } from '@/lib/prisma';
+import { placeReportReasonLabel } from '@/lib/report-labels';
 
 export default async function ReportsPage() {
   const reports = await prisma.report.findMany({
@@ -28,7 +29,7 @@ export default async function ReportsPage() {
                 <div className="flex gap-2">
                   <h2 className="font-black">{report.place.nameTh}</h2>
                   <span className="rounded-full bg-[var(--terracotta-soft)] px-2 py-1 text-xs font-bold text-[var(--terracotta)]">
-                    {report.reason}
+                    {placeReportReasonLabel(report.reason)}
                   </span>
                 </div>
                 <p className="mt-2 text-sm">{report.details}</p>

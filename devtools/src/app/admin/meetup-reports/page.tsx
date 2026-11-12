@@ -1,24 +1,30 @@
 import { AdminShell } from '@/features/admin/admin-shell';
+import { loadReportTargets } from '@/features/admin/meetup-report-targets';
+import { ReportTargetPreview } from '@/features/admin/report-target-preview';
 import { AdminMeetupReportAction } from '@/features/meetups/admin-report-action';
 import { prisma } from '@/lib/prisma';
-
-const targetLabels = {
-  MEETUP: 'Meetup',
-  USER: 'ผู้ใช้',
-  MESSAGE: 'ข้อความ',
-  IMAGE: 'รูปภาพ',
-} as const;
+import { meetupReportReasonLabel, meetupReportTargetLabel } from '@/lib/report-labels';
 
 export default async function AdminMeetupReportsPage() {
   const reports = await prisma.meetupReport.findMany({
     where: { status: { in: ['OPEN', 'IN_REVIEW'] } },
     include: {
-      meetup: { select: { id: true, title: true } },
+      meetup: { select: { id: true, title: true, coverObjectKey: true } },
       reporter: { select: { name: true } },
     },
     orderBy: { createdAt: 'desc' },
     take: 100,
   });
+  const targets = await loadReportTargets(
+    prisma,
+    reports.map((report) => ({
+      id: report.id,
+      target: report.target,
+      targetId: report.targetId,
+      meetupId: report.meetupId,
+      meetupCoverKey: report.meetup.coverObjectKey,
+    })),
+  );
   return (
     <AdminShell
       title="รายงาน Meetup"
@@ -46,12 +52,13 @@ export default async function AdminMeetupReportsPage() {
                     </a>
                   </h2>
                   <span className="rounded-full bg-[var(--terracotta-soft)] px-2 py-1 text-xs font-bold text-[var(--terracotta)]">
-                    {report.reason}
+                    {meetupReportReasonLabel(report.reason)}
                   </span>
                   <span className="rounded-full bg-[var(--surface-soft)] px-2 py-1 text-xs font-bold text-[var(--text-muted)]">
-                    {targetLabels[report.target]}
+                    {meetupReportTargetLabel(report.target)}
                   </span>
                 </div>
+                <ReportTargetPreview view={targets.get(report.id)!} meetupId={report.meetup.id} />
                 {report.details && (
                   <p className="mt-2 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]">
                     {report.details}

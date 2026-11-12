@@ -4,14 +4,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 // AdminShell is the only place that calls requireAdmin() and draws the admin header and tabs,
 // so these pages must always render inside it.
+vi.mock('server-only', () => ({}));
 vi.mock('@/features/admin/admin-shell', () => ({ AdminShell: () => null }));
 vi.mock('@/features/meetups/admin-report-action', () => ({ AdminMeetupReportAction: () => null }));
 
-const data = vi.hoisted(() => ({ meetups: [] as unknown[], reports: [] as unknown[] }));
+const data = vi.hoisted(() => ({
+  meetups: [] as unknown[],
+  reports: [] as unknown[],
+  messages: [] as unknown[],
+  users: [] as unknown[],
+}));
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     meetup: { findMany: async () => data.meetups },
     meetupReport: { findMany: async () => data.reports },
+    meetupMessage: { findMany: async () => data.messages },
+    user: { findMany: async () => data.users },
   },
 }));
 
@@ -41,6 +49,8 @@ const meetup = (overrides: Record<string, unknown> = {}) => ({
 beforeEach(() => {
   data.meetups = [];
   data.reports = [];
+  data.messages = [];
+  data.users = [];
 });
 
 describe('admin Meetup tab', () => {
@@ -93,14 +103,30 @@ describe('admin Meetup reports tab', () => {
         target: 'MESSAGE',
         details: 'ส่งลิงก์ซ้ำ ๆ',
         createdAt: new Date('2026-11-01T00:00:00Z'),
-        meetup: { id: 'm1', title: 'เดินเล่นสวนลุม' },
+        meetupId: 'm1',
+        targetId: 'msg1',
+        meetup: { id: 'm1', title: 'เดินเล่นสวนลุม', coverObjectKey: null },
         reporter: { name: 'น้องบี' },
+      },
+    ];
+    data.messages = [
+      {
+        id: 'msg1',
+        meetupId: 'm1',
+        text: 'ลิงก์โฆษณาเดิมซ้ำ ๆ',
+        objectKey: null,
+        deletedAt: null,
+        author: { name: 'คุณสแปม' },
       },
     ];
     const { html } = await render(AdminMeetupReportsPage);
     expect(html).toContain('เดินเล่นสวนลุม');
-    expect(html).toContain('SPAM');
+    expect(html).toContain('สแปม');
+    expect(html).not.toContain('SPAM');
     expect(html).toContain('ข้อความ');
+    expect(html).toContain('ข้อความจาก คุณสแปม');
+    expect(html).toContain('ลิงก์โฆษณาเดิมซ้ำ ๆ');
+    expect(html).toContain('href="/meetups/m1/chat"');
     expect(html).toContain('ส่งลิงก์ซ้ำ ๆ');
     expect(html).toContain('โดย น้องบี');
     expect(html).toContain('href="/meetups/m1"');

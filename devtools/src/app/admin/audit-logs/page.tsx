@@ -63,8 +63,12 @@ export default async function AuditLogsPage({
             ))}
           </tbody>
         </table>
-        {audits.length === 0 && <p className="p-10 text-center">ไม่พบ AuditLog ตามตัวกรอง</p>}
       </div>
+      {audits.length === 0 && (
+        <p className="mt-4 rounded-2xl border border-dashed bg-[var(--surface)]/50 p-10 text-center">
+          ไม่พบ AuditLog ตามตัวกรอง
+        </p>
+      )}
     </AdminShell>
   );
 }
