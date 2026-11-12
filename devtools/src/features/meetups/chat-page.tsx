@@ -13,6 +13,7 @@ export async function MeetupChatPage({ id, locale }: { id: string; locale: Local
     <MeetupChatRoom
       locale={locale}
       id={id}
+      title={meetup.title}
       viewerId={session.user.id}
       canModerate={session.user.role === 'ADMIN' || meetup.hostId === session.user.id}
       writable={canWriteMeetupChat(meetup.status, meetup.endsAt)}
