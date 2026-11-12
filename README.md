@@ -68,10 +68,27 @@ Stack: PostgreSQL 17, Mailpit, SeaweedFS (S3-compatible, internal only), a one-s
 `pawmap-media` bucket), a one-shot `setup` (migrations, reference data, demo accounts, public places), the app
 and the meetup worker. Start-up order is enforced with `service_healthy` / `service_completed_successfully`.
 
-**Demo accounts**: one admin (`demo-admin@example.com`) and one regular user (`demo-user@example.com`). Both use
-the **same password, `PetHub-Demo-2026`**. Override the password with `DEMO_PASSWORD` (the e-mails with
-`DEMO_ADMIN_EMAIL` / `DEMO_USER_EMAIL`); the defaults are in the `x-demo-env` block of
+**Demo accounts**: three accounts, all with the **same password, `PetHub-Demo-2026`** (override it with
+`DEMO_PASSWORD`; the e-mails with `DEMO_ADMIN_EMAIL` / `DEMO_USER_EMAIL` / `DEMO_USER2_EMAIL`). They are created by the
+setup step, so they exist right after `docker compose up`, and setup adds any missing one to an existing database on
+the next `up`. The defaults are in the `x-demo-env` block of
 [`devtools/infra/compose.demo.yml`](devtools/infra/compose.demo.yml).
+
+| Account                  | Role  | What it is for                                                                            |
+| ------------------------ | ----- | ----------------------------------------------------------------------------------------- |
+| `demo-admin@example.com` | Admin | The admin console: report lists, the sample-data buttons, moderation.                     |
+| `demo-user@example.com`  | User  | A normal member. Hosts the Meetup "ฝึกคำสั่งพื้นฐานน้องหมากลางสวน".                       |
+| `demo-user2@example.com` | User  | A second member, so two people can really talk. Hosts the Meetup "เคล็ดลับดูแลแมวสูงวัย". |
+
+Every account has sample pets (dogs, cats and a rabbit, with Thai names), which show on the pets page and, for the two
+members, on their profile in a Meetup chat. These pets belong to the accounts and are kept when the sample data is
+deleted.
+
+**Testing chat with two people.** After pressing **สร้างข้อมูลตัวอย่าง** (below), sign in as `demo-user` in a normal
+window and as `demo-user2` in a private (incognito) window, since a browser keeps one session per profile. Both are
+members of the same Meetups, so open "แชตกลุ่ม" in each window and write to each other. The Meetup hosted by `demo-user`
+lets that user pin messages; the one hosted by `demo-user2` lets the other pin. Either can report the other's message,
+and `demo-admin` sees the report in the admin console.
 
 > **Upgrading from the earlier demo?** The old stack had two different passwords, kept in its database volume.
 > Run `docker compose -f infra/compose.demo.yml down -v` once (this deletes the demo database and uploaded
@@ -79,10 +96,11 @@ the **same password, `PetHub-Demo-2026`**. Override the password with `DEMO_PASS
 
 **Sample data.** In this demo stack (`DEMO_TOOLS_ENABLED=true`, set only in `compose.demo.yml`) the admin overview
 has a "ข้อมูลตัวอย่าง (Demo)" card. Sign in as the admin and press **สร้างข้อมูลตัวอย่าง** to fill the site with
-Thai sample Meetups (with members and chat, including pinned messages), reviews, submissions in several statuses,
-notifications, and open reports of every kind. It is safe to press again: nothing is duplicated. **ลบข้อมูลตัวอย่าง**
+Thai sample Meetups (with members and chat, including pinned messages, and two that link `demo-user` and
+`demo-user2`), pets for the made-up members, reviews, submissions in several statuses, notifications, and open
+reports of every kind. It is safe to press again: nothing is duplicated. **ลบข้อมูลตัวอย่าง**
 removes exactly what was created (every sample row has an id starting with `demo_`), recalculates place ratings, and
-never touches the imported places, real users or the two demo accounts. Each press is written to the audit log. With
+never touches the imported places, real users, the three demo accounts or their pets. Each press is written to the audit log. With
 the variable absent or not `true` (every other environment) the card is hidden and the action refuses.
 
 > **Demo only.** Every default in that file (database password, `BETTER_AUTH_SECRET`, S3 keys, account passwords)
