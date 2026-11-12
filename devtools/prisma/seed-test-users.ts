@@ -1,21 +1,13 @@
 import { prisma } from '../src/lib/prisma';
-import { requiredEnvironment } from '../src/lib/server-config';
-import { provisionCredentialUser } from './provision-user';
+import { demoPetsEnabled, seedAccountPets, seedCredentialAccounts } from './seed-accounts';
 
 try {
-  await provisionCredentialUser({
-    email: requiredEnvironment('SEED_ADMIN_EMAIL'),
-    password: requiredEnvironment('SEED_ADMIN_PASSWORD'),
-    name: 'PawMap Test Admin',
-    role: 'ADMIN',
-  });
-  await provisionCredentialUser({
-    email: requiredEnvironment('SEED_USER_EMAIL'),
-    password: requiredEnvironment('SEED_USER_PASSWORD'),
-    name: 'PawMap Test User',
-    role: 'USER',
-  });
-  console.log('Seeded credential accounts from the test environment.');
+  const ids = await seedCredentialAccounts();
+  console.log(`Seeded ${ids.size} credential accounts from the test environment.`);
+  if (demoPetsEnabled()) {
+    const created = await seedAccountPets(ids);
+    console.log(`Seeded demo pets (${created} new).`);
+  }
 } finally {
   await prisma.$disconnect();
 }

@@ -23,9 +23,15 @@ x-demo-env: &demo-env
   MAIL_FROM: PetHub Demo <noreply@example.com>
   NOMINATIM_CONTACT_EMAIL: ${DEMO_NOMINATIM_CONTACT:-https://github.com/Bestmymint/pethub}
   SEED_ADMIN_EMAIL: ${DEMO_ADMIN_EMAIL:-demo-admin@example.com}
-  SEED_ADMIN_PASSWORD: ${DEMO_PASSWORD:-PetHub-Demo-2026}
+  # One shared password for all three demo accounts: the default is written here once and aliased below.
+  SEED_ADMIN_PASSWORD: &demo-password ${DEMO_PASSWORD:-PetHub-Demo-2026}
   SEED_USER_EMAIL: ${DEMO_USER_EMAIL:-demo-user@example.com}
-  SEED_USER_PASSWORD: ${DEMO_PASSWORD:-PetHub-Demo-2026}
+  SEED_USER_PASSWORD: *demo-password
+  # A second regular user, so two people can really chat in a demo Meetup (see the README).
+  SEED_USER2_EMAIL: ${DEMO_USER2_EMAIL:-demo-user2@example.com}
+  SEED_USER2_PASSWORD: *demo-password
+  # Gives the three accounts their sample pets when setup seeds them (never set outside this file).
+  SEED_DEMO_PETS: 'true'
 
 services:
   postgres:
