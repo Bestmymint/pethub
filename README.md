@@ -68,9 +68,22 @@ Stack: PostgreSQL 17, Mailpit, SeaweedFS (S3-compatible, internal only), a one-s
 `pawmap-media` bucket), a one-shot `setup` (migrations, reference data, demo accounts, public places), the app
 and the meetup worker. Start-up order is enforced with `service_healthy` / `service_completed_successfully`.
 
-**Demo accounts**: one admin and one regular user, created from `DEMO_ADMIN_EMAIL` / `DEMO_ADMIN_PASSWORD` and
-`DEMO_USER_EMAIL` / `DEMO_USER_PASSWORD`. Their throwaway defaults are in the `x-demo-env` block of
+**Demo accounts**: one admin (`demo-admin@example.com`) and one regular user (`demo-user@example.com`). Both use
+the **same password, `PetHub-Demo-2026`**. Override the password with `DEMO_PASSWORD` (the e-mails with
+`DEMO_ADMIN_EMAIL` / `DEMO_USER_EMAIL`); the defaults are in the `x-demo-env` block of
 [`devtools/infra/compose.demo.yml`](devtools/infra/compose.demo.yml).
+
+> **Upgrading from the earlier demo?** The old stack had two different passwords, kept in its database volume.
+> Run `docker compose -f infra/compose.demo.yml down -v` once (this deletes the demo database and uploaded
+> files), then `up -d --build` again, so the accounts are created with the shared password.
+
+**Sample data.** In this demo stack (`DEMO_TOOLS_ENABLED=true`, set only in `compose.demo.yml`) the admin overview
+has a "ข้อมูลตัวอย่าง (Demo)" card. Sign in as the admin and press **สร้างข้อมูลตัวอย่าง** to fill the site with
+Thai sample Meetups (with members and chat, including pinned messages), reviews, submissions in several statuses,
+notifications, and open reports of every kind. It is safe to press again: nothing is duplicated. **ลบข้อมูลตัวอย่าง**
+removes exactly what was created (every sample row has an id starting with `demo_`), recalculates place ratings, and
+never touches the imported places, real users or the two demo accounts. Each press is written to the audit log. With
+the variable absent or not `true` (every other environment) the card is hidden and the action refuses.
 
 > **Demo only.** Every default in that file (database password, `BETTER_AUTH_SECRET`, S3 keys, account passwords)
 > is public in this repository. Override all `DEMO_*` variables for anything beyond a local demo. Use

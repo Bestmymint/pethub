@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 
 import { AdminShell } from '@/features/admin/admin-shell';
+import { DemoToolsCard } from '@/features/admin/demo-tools-card';
+import { demoToolsEnabled } from '@/features/demo/demo-config';
 import { prisma } from '@/lib/prisma';
 
 export default async function AdminDashboard() {
@@ -43,6 +45,7 @@ export default async function AdminDashboard() {
           </article>
         ))}
       </div>
+      {demoToolsEnabled() && <DemoToolsCard />}
       <section className="mt-8 surface p-6">
         <div className="flex items-center justify-between">
           <div>
