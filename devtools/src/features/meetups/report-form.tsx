@@ -4,15 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 
 import { Button } from '@/components/ui/button';
 import type { Locale } from '@/lib/i18n';
-
-export const REPORT_REASONS = [
-  ['SPAM', 'สแปม', 'Spam'],
-  ['HARASSMENT', 'คุกคามหรือรังแก', 'Harassment'],
-  ['INAPPROPRIATE_CONTENT', 'เนื้อหาไม่เหมาะสม', 'Inappropriate content'],
-  ['SCAM', 'หลอกลวง', 'Scam'],
-  ['DANGEROUS_BEHAVIOR', 'พฤติกรรมอันตราย', 'Dangerous behavior'],
-  ['OTHER', 'อื่น ๆ', 'Other'],
-] as const;
+import { MESSAGE_REPORT_REASONS } from '@/lib/report-labels';
 
 /** Asks for a reason before a message is reported. Escape cancels; the reason list gets focus on open. */
 export function ReportForm({
@@ -27,7 +19,7 @@ export function ReportForm({
   onCancel: () => void;
 }) {
   const th = locale === 'th';
-  const [reason, setReason] = useState<string>(REPORT_REASONS[0][0]);
+  const [reason, setReason] = useState<string>('SPAM');
   const select = useRef<HTMLSelectElement>(null);
   const form = useRef<HTMLFormElement>(null);
 
@@ -65,7 +57,7 @@ export function ReportForm({
         onChange={(event) => setReason(event.target.value)}
         className="min-h-10 rounded-md border border-[var(--border)] bg-[var(--surface)] px-3 text-sm"
       >
-        {REPORT_REASONS.map(([value, thLabel, enLabel]) => (
+        {MESSAGE_REPORT_REASONS.map(([value, thLabel, enLabel]) => (
           <option key={value} value={value}>
             {th ? thLabel : enLabel}
           </option>

@@ -9,6 +9,7 @@ import { Select, Textarea } from '@/components/ui/field';
 import { reportPlace, saveReview, toggleFavorite, verifyPlace } from '@/features/community/actions';
 import type { Locale } from '@/lib/i18n';
 import { withLocale } from '@/lib/i18n';
+import { PLACE_REPORT_REASONS } from '@/lib/report-labels';
 
 export function PlaceCommunityActions({
   placeId,
@@ -232,17 +233,11 @@ export function PlaceCommunityActions({
           <label className="mt-5 grid gap-1.5 text-sm font-bold">
             {isThai ? 'เหตุผล' : 'Reason'}
             <Select name="reason">
-              <option value="INCORRECT_INFORMATION">
-                {isThai ? 'ข้อมูลไม่ถูกต้อง' : 'Incorrect information'}
-              </option>
-              <option value="TEMPORARILY_CLOSED">
-                {isThai ? 'ปิดชั่วคราว' : 'Temporarily closed'}
-              </option>
-              <option value="PERMANENTLY_CLOSED">
-                {isThai ? 'ปิดกิจการ' : 'Permanently closed'}
-              </option>
-              <option value="DUPLICATE">{isThai ? 'ข้อมูลซ้ำ' : 'Duplicate'}</option>
-              <option value="OTHER">{isThai ? 'อื่น ๆ' : 'Other'}</option>
+              {PLACE_REPORT_REASONS.map(([value, thLabel, enLabel]) => (
+                <option key={value} value={value}>
+                  {isThai ? thLabel : enLabel}
+                </option>
+              ))}
             </Select>
           </label>
           <label className="mt-4 grid gap-1.5 text-sm font-bold">
