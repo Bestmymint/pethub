@@ -1,0 +1,158 @@
+// PetHub course-style pipeline (see README.md in this folder).
+//
+// Jenkins runs no docker itself. It checks the code out, ships it over ssh to the course box
+// `devtools`, and every docker/npm command runs there through infra/ci/remote.sh.
+//
+//   Connect -> Checkout and ship -> Build -> Test -> Push -> Deploy -> Smoke
+//
+// Declarative pipelines stop at the first failing stage, so a failure in Build or Test means Push and
+// Deploy never run and the previous deployment keeps running. Trigger: Poll SCM (no webhook, no ngrok).
+//
+// Needs two Jenkins credentials: `devtools-ssh` (SSH key for root@devtools) and `dockerhub`
+// (username + token). Secrets are only used inside withCredentials with single-quoted sh steps.
+pipeline {
+  agent any
+
+  options {
+    disableConcurrentBuilds()
+    skipDefaultCheckout()
+    timestamps()
+    timeout(time: 60, unit: 'MINUTES')
+  }
+
+  triggers {
+    pollSCM('H/2 * * * *')
+  }
+
+  environment {
+    SSH_DEVTOOLS = 'ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes root@devtools'
+    WORK_DIR = '/root/ci-work/pethub'
+    REMOTE_SH = 'sh /root/ci-work/pethub/devtools/infra/ci/remote.sh'
+    DOCKER_CONFIG_DIR = "/root/ci-work/docker-config-${BUILD_NUMBER}"
+  }
+
+  stages {
+    stage('Connect') {
+      steps {
+        script { env.CURRENT_STAGE = 'Connect' }
+        sshagent(credentials: ['devtools-ssh']) {
+          sh '$SSH_DEVTOOLS "hostname && docker --version"'
+        }
+        // Only the user name is read here (it is part of the image name). The token is never touched in Groovy.
+        withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DH_USER', passwordVariable: 'DH_TOKEN')]) {
+          script { env.DOCKER_USER = env.DH_USER }
+        }
+        script {
+          if (!env.DOCKER_USER) { error('The dockerhub credential has no user name') }
+        }
+      }
+    }
+
+    stage('Checkout and ship') {
+      steps {
+        script {
+          env.CURRENT_STAGE = 'Checkout and ship'
+          def scmVars = checkout scm
+          env.COMMIT_FULL = scmVars.GIT_COMMIT
+          env.COMMIT = scmVars.GIT_COMMIT.take(7)
+          env.PETHUB_IMAGE = "${env.DOCKER_USER}/pethub:${env.COMMIT}"
+          env.PETHUB_EXTRA_TAG = "${env.DOCKER_USER}/pethub:ci-${env.BUILD_NUMBER}"
+          // Non-secret settings handed to remote.sh as environment assignments in front of the command.
+          env.REMOTE_VARS = "WORK_DIR=${env.WORK_DIR} PETHUB_IMAGE=${env.PETHUB_IMAGE} PETHUB_EXTRA_TAG=${env.PETHUB_EXTRA_TAG} PETHUB_REVISION=${env.COMMIT_FULL}"
+          echo "Building commit ${env.COMMIT} as ${env.PETHUB_IMAGE}"
+        }
+        sshagent(credentials: ['devtools-ssh']) {
+          sh '''
+            tar --exclude=.git --exclude=node_modules --exclude=.next -cf - . \
+              | $SSH_DEVTOOLS "rm -rf '$WORK_DIR' && mkdir -p '$WORK_DIR' && tar -xf - -C '$WORK_DIR'"
+            $SSH_DEVTOOLS "test -f '$WORK_DIR/devtools/package.json' && test -f '$WORK_DIR/devtools/infra/ci/remote.sh' && echo shipped"
+          '''
+        }
+      }
+    }
+
+    stage('Build') {
+      steps {
+        script { env.CURRENT_STAGE = 'Build' }
+        sshagent(credentials: ['devtools-ssh']) {
+          sh '$SSH_DEVTOOLS "$REMOTE_VARS $REMOTE_SH build"'
+        }
+      }
+    }
+
+    stage('Test') {
+      steps {
+        script { env.CURRENT_STAGE = 'Test' }
+        sshagent(credentials: ['devtools-ssh']) {
+          sh '$SSH_DEVTOOLS "$REMOTE_VARS $REMOTE_SH test"'
+        }
+      }
+    }
+
+    stage('Push') {
+      steps {
+        script { env.CURRENT_STAGE = 'Push' }
+        withCredentials([usernamePassword(credentialsId: 'dockerhub', usernameVariable: 'DH_USER', passwordVariable: 'DH_TOKEN')]) {
+          sshagent(credentials: ['devtools-ssh']) {
+            // Single quotes: the shell expands the token, Groovy never sees it, so Jenkins masks it in the log.
+            // It travels on stdin; remote.sh logs in with --password-stdin into a throwaway docker config.
+            sh '''
+              set +x
+              printf '%s' "$DH_TOKEN" | $SSH_DEVTOOLS "$REMOTE_VARS DH_USER=$DH_USER DOCKER_CONFIG_DIR=$DOCKER_CONFIG_DIR $REMOTE_SH push"
+            '''
+          }
+        }
+      }
+    }
+
+    stage('Deploy') {
+      steps {
+        script { env.CURRENT_STAGE = 'Deploy' }
+        sshagent(credentials: ['devtools-ssh']) {
+          sh '$SSH_DEVTOOLS "$REMOTE_VARS $REMOTE_SH deploy"'
+        }
+      }
+    }
+
+    stage('Smoke') {
+      steps {
+        script { env.CURRENT_STAGE = 'Smoke' }
+        sshagent(credentials: ['devtools-ssh']) {
+          sh '$SSH_DEVTOOLS "$REMOTE_VARS $REMOTE_SH smoke"'
+        }
+      }
+    }
+  }
+
+  post {
+    always {
+      script {
+        // The push stage removes its docker config itself; this covers an abort or timeout in the middle of it.
+        try {
+          sshagent(credentials: ['devtools-ssh']) {
+            sh '$SSH_DEVTOOLS "rm -rf -- \'$DOCKER_CONFIG_DIR\'"'
+          }
+        } catch (ignored) {
+          echo 'Could not remove the temporary docker config on the box (it only exists during the push stage).'
+        }
+      }
+    }
+    success {
+      echo "PIPELINE PASSED: ${env.PETHUB_IMAGE} was pushed, deployed and smoke-tested on the box."
+    }
+    failure {
+      script {
+        def stageName = env.CURRENT_STAGE ?: 'unknown'
+        def beforeDeploy = ['Connect', 'Checkout and ship', 'Build', 'Test', 'Push']
+        if (beforeDeploy.contains(stageName)) {
+          echo "PIPELINE FAILED in stage '${stageName}'. Deploy was not reached; the previous deployment was left running."
+        } else {
+          echo "PIPELINE FAILED in stage '${stageName}'. The deployment on the box may be incomplete; check docker compose ps there."
+        }
+      }
+    }
+    aborted {
+      echo "PIPELINE ABORTED in stage '${env.CURRENT_STAGE ?: 'unknown'}' (timeout or manual stop)."
+    }
+  }
+}
