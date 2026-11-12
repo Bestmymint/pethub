@@ -22,7 +22,11 @@ export function AdminMeetupReportAction({ id }: { id: string }) {
       <Button size="sm" variant="secondary" disabled={pending} onClick={() => void run(true)}>
         ยกเลิกรายงาน
       </Button>
-      {error && <p role="alert">{error}</p>}
+      {error && (
+        <p role="alert" className="text-sm font-semibold text-[var(--terracotta)]">
+          {error}
+        </p>
+      )}
     </div>
   );
 }
