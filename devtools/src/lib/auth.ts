@@ -63,5 +63,3 @@ export const auth = betterAuth({
   plugins: [nextCookies()],
   hooks: { before: validateCredentials },
 });
-
-export type AuthSession = typeof auth.$Infer.Session;

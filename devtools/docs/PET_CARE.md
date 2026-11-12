@@ -13,7 +13,7 @@ All mutations are Next.js server actions in `src/features/pets/actions.ts`, usin
 
 Missing or foreign-owned pets return the same not-found result. Daily checklists are a fixed set of three tasks, with no external reminders. Follow-up reminders are shown in the workspace; they do not schedule email or push messages. Health history is a personal journal, without diagnosis or generated medical advice.
 
-Members of the same Meetup can view each other’s active pet identity cards from chat author links. That separate read selects only basic profile fields and enforces group membership and blocks; it does not expose health, weight, notes, or care logs. See [MEETUP_MEMBERS.md](./MEETUP_MEMBERS.md).
+Members of the same Meetup can view each other’s active pet identity cards from chat author links. That separate read selects only basic profile fields and enforces group membership and blocks; it does not expose health, weight, notes, or care logs. See [MEETUP_MEMBERS.md](../MEETUP_MEMBERS.md).
 
 ## UI and assets
 

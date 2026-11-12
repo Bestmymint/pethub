@@ -24,6 +24,14 @@ const ignoredFiles = new Set([
   // Preserve the bundled font's original copyright notice; it is passive license text.
   'public/fonts/pawspace/OFL-DM-Sans.txt',
 ]);
+// The project's own repository. Only this exact URL (optionally with .git) is exempt, in text and as the
+// origin remote; every other reference to the host stays an error. verify-source-allowlist.mjs applies the same
+// exception. The earlier repository below remains an approved remote.
+const approvedRepository = ['https://git', 'hub.com/Bestmymint/pethub'].join('');
+const approvedRepositoryPattern = new RegExp(
+  `${approvedRepository.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?:\\.git)?(?![\\w-]|\\.\\w|/\\w)`,
+  'gu',
+);
 const canonicalRemote = ['https://git', 'hub.com/nickuman67070072/devtools.git'].join('');
 const canonicalSshRemote = ['git@git', 'hub.com:nickuman67070072/devtools.git'].join('');
 const textExtensions = new Set([
@@ -60,7 +68,7 @@ for (const file of await collectFiles(root)) {
   const relative = path.relative(root, file).replaceAll('\\', '/');
   if (ignoredFiles.has(relative)) continue;
   if (relative !== 'Jenkinsfile' && !textExtensions.has(path.extname(file))) continue;
-  const text = await readFile(file, 'utf8');
+  const text = (await readFile(file, 'utf8')).replace(approvedRepositoryPattern, '');
   for (const host of forbiddenHosts) {
     if (text.toLowerCase().includes(host)) violations.push(`${relative}: ${host}`);
   }
@@ -87,8 +95,13 @@ try {
       remote.startsWith('/') ||
       remote.startsWith('./') ||
       remote.startsWith('../');
-    if (!isLocal && remote !== canonicalRemote && remote !== canonicalSshRemote)
-      violations.push(`unapproved Git remote: ${remote}`);
+    const approved = [
+      canonicalRemote,
+      canonicalSshRemote,
+      approvedRepository,
+      `${approvedRepository}.git`,
+    ];
+    if (!isLocal && !approved.includes(remote)) violations.push(`unapproved Git remote: ${remote}`);
   }
 } catch {
   // A repository without an origin remote is valid for this local-only project.
