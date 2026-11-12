@@ -1,0 +1,19 @@
+# Override for ../compose.demo.yml, used by the Jenkins pipeline (see README.md in this folder):
+#
+#   docker compose -f infra/compose.demo.yml -f infra/ci/compose.ci.yml ...   (run from devtools/)
+#
+# It makes the app and the meetup worker use one named, tagged image instead of pethub-demo-app:local, and
+# stamps that image with the commit it was built from. compose.demo.yml itself is not changed.
+#
+#   PETHUB_IMAGE     image reference, e.g. <dockerhub-user>/pethub:<commit>   (required)
+#   PETHUB_REVISION  full commit hash for the OCI revision label            (required)
+services:
+  app:
+    image: ${PETHUB_IMAGE:?set PETHUB_IMAGE}
+    build:
+      labels:
+        org.opencontainers.image.revision: ${PETHUB_REVISION:?set PETHUB_REVISION}
+
+  # Same image as the app (compose.demo.yml pins it with pull_policy: never, so it must exist locally).
+  worker:
+    image: ${PETHUB_IMAGE:?set PETHUB_IMAGE}
