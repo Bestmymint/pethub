@@ -1,6 +1,7 @@
 import type { Prisma } from '@prisma/client';
 
 import { MAX_PINNED_MESSAGES } from '@/features/meetups/chat-pins';
+import { MEMBER_PETS, petRow } from './demo-pets';
 import { DEMO_EMAIL_DOMAIN, bangkokTime, demoId, demoImageKey, hoursAgo } from './demo-config';
 
 /** Everything the content depends on. The builder is pure, so tests can feed it small fixtures. */
@@ -12,10 +13,13 @@ export interface DemoRefs {
   categoryId: string;
   /** The seeded demo user account, so the teacher sees content when logging in as that user. */
   demoUserId: string | null;
+  /** The second seeded sign-in account. Null while it is not seeded yet; its rows are then left out. */
+  demoUser2Id: string | null;
 }
 
 export interface DemoContent {
   users: Prisma.UserCreateManyInput[];
+  pets: Prisma.PetCreateManyInput[];
   meetups: Prisma.MeetupCreateManyInput[];
   members: Prisma.MeetupMemberCreateManyInput[];
   messages: Prisma.MeetupMessageCreateManyInput[];
@@ -37,7 +41,9 @@ const PERSONAS = [
   'อรวรรณ มีสุข',
 ];
 
-type Author = number | 'demoUser' | 'system';
+/** A made-up member (by index) or one of the two seeded sign-in users. */
+type UserKey = number | 'demoUser' | 'demoUser2';
+type Author = UserKey | 'system';
 
 interface MessageSpec {
   author: Author;
@@ -57,8 +63,8 @@ interface MeetupSpec {
   startHour: number;
   durationHours: number;
   maxMembers: number;
-  host: number;
-  members: number[];
+  host: UserKey;
+  members: UserKey[];
   demoUserJoins: boolean;
   messages: MessageSpec[];
 }
@@ -192,10 +198,74 @@ const MEETUPS: MeetupSpec[] = [
       { author: 0, text: 'สนุกมากครับ ไว้เจอกันรอบหน้า', hours: 111 },
     ],
   },
+  {
+    title: 'ฝึกคำสั่งพื้นฐานน้องหมากลางสวน',
+    description:
+      'ชวนมาฝึกคำสั่งพื้นฐาน เช่น นั่ง รอ และมานี่ ในบรรยากาศสบาย ๆ ที่ลานหญ้า เหมาะกับน้องหมาที่เพิ่งเริ่มฝึกและเจ้าของมือใหม่',
+    rules: 'พกขนมรางวัลของน้องมาเอง และห้ามให้ขนมน้องตัวอื่นโดยไม่ถามเจ้าของ',
+    status: 'OPEN',
+    startDays: 3,
+    startHour: 16,
+    durationHours: 2,
+    maxMembers: 8,
+    host: 'demoUser',
+    members: [3, 5, 'demoUser2'],
+    demoUserJoins: false,
+    messages: [
+      { author: 'system', text: 'สร้างกลุ่มนี้แล้ว', hours: 60 },
+      {
+        author: 'demoUser',
+        text: 'ประกาศ: นัดเจอกันที่ลานหญ้าหน้าอาคารสโมสร 16:00 น. พกขนมรางวัลมาด้วยนะคะ',
+        hours: 56,
+        pinned: true,
+      },
+      { author: 'demoUser2', text: 'ขอไปด้วยนะคะ เจ้าทองยังไม่คุ้นกับคำสั่งนั่งรอเลย', hours: 40 },
+      { author: 3, text: 'น้องบราวนี่ทำคำสั่งนั่งได้ แต่ยังไม่นิ่งตอนมีคนเดินผ่านค่ะ', hours: 30 },
+      {
+        author: 'demoUser',
+        text: 'ได้เลยค่ะ เดี๋ยวเริ่มจากคำสั่งง่าย ๆ ก่อน',
+        hours: 28,
+        replyTo: 3,
+      },
+      { author: 5, text: 'ขอบคุณค่ะ ตื่นเต้นมาก', hours: 8 },
+    ],
+  },
+  {
+    title: 'เคล็ดลับดูแลแมวสูงวัย',
+    description:
+      'แลกเปลี่ยนวิธีดูแลแมวอายุมาก ทั้งอาหาร การตรวจสุขภาพ และการจัดบ้านให้ปลอดภัยสำหรับแมวที่เริ่มเดินช้าลง',
+    rules: 'พาแมวมาในกระเป๋าหรือกรงเท่านั้น และงดขนมที่มีรสจัด',
+    status: 'OPEN',
+    startDays: 5,
+    startHour: 13,
+    durationHours: 2,
+    maxMembers: 8,
+    host: 'demoUser2',
+    members: [1, 4, 'demoUser'],
+    demoUserJoins: false,
+    messages: [
+      { author: 'system', text: 'สร้างกลุ่มนี้แล้ว', hours: 70 },
+      {
+        author: 'demoUser2',
+        text: 'ร้านสงวนมุมเงียบติดหน้าต่างไว้ให้แล้วค่ะ ใครมีแมวสูงวัยพามาได้เลย',
+        hours: 50,
+        pinned: true,
+      },
+      { author: 1, text: 'แมวอายุ 12 ปีของฉันกินน้อยลง ควรปรึกษาหมอไหมคะ', hours: 36 },
+      {
+        author: 'demoUser',
+        text: 'ลองตรวจเลือดดูค่ะ ของเราก็เคยเป็นแบบนี้',
+        hours: 34,
+        replyTo: 3,
+      },
+      { author: 'demoUser2', text: 'แนะนำให้พาไปตรวจสุขภาพทุกหกเดือนค่ะ', hours: 33 },
+      { author: 4, text: 'ขอบคุณสำหรับข้อมูลครับ', hours: 5 },
+    ],
+  },
 ];
 
 interface ReviewSpec {
-  author: number | 'demoUser';
+  author: UserKey;
   place: number;
   rating: number;
   clean: number;
@@ -326,15 +396,35 @@ const REVIEWS: ReviewSpec[] = [
     hours: 25,
     content: 'เดินทางง่ายและมีมุมพักสำหรับสัตว์เลี้ยง แนะนำค่ะ',
   },
+  {
+    author: 'demoUser2',
+    place: 1,
+    rating: 4,
+    clean: 4,
+    convenience: 4,
+    pet: 5,
+    hours: 45,
+    content: 'พาเจ้าทองไปเดินเล่นช่วงเช้า อากาศดีและมีน้ำให้น้องดื่ม ประทับใจค่ะ',
+  },
+  {
+    author: 'demoUser2',
+    place: 4,
+    rating: 5,
+    clean: 5,
+    convenience: 4,
+    pet: 5,
+    hours: 22,
+    content: 'พนักงานเป็นมิตรกับแมวมาก ส้มจี๊ดไม่กลัวเลย จะพามาอีกแน่นอน',
+  },
 ];
 
 export function buildDemoContent(refs: DemoRefs): DemoContent {
-  const { now, places, provinceId, categoryId, demoUserId } = refs;
+  const { now, places, provinceId, categoryId, demoUserId, demoUser2Id } = refs;
   if (places.length === 0) throw new Error('DEMO_NO_PLACES');
   const placeAt = (index: number) => places[index % places.length]!;
   const userId = (index: number) => demoId('user', index + 1);
-  const authorId = (author: number | 'demoUser'): string | null =>
-    author === 'demoUser' ? demoUserId : userId(author);
+  const authorId = (author: UserKey): string | null =>
+    author === 'demoUser' ? demoUserId : author === 'demoUser2' ? demoUser2Id : userId(author);
 
   const users: Prisma.UserCreateManyInput[] = PERSONAS.map((name, index) => ({
     id: userId(index),
@@ -344,15 +434,41 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
     createdAt: hoursAgo(now, 24 * 40),
   }));
 
+  let petCount = 0;
+  const pets: Prisma.PetCreateManyInput[] = MEMBER_PETS.flatMap((owned, index) =>
+    owned.map((input) => {
+      petCount += 1;
+      return petRow(userId(index), demoId('pet', petCount), input);
+    }),
+  );
+
   const meetups: Prisma.MeetupCreateManyInput[] = [];
   const members: Prisma.MeetupMemberCreateManyInput[] = [];
   const messages: Prisma.MeetupMessageCreateManyInput[] = [];
   const images: DemoContent['images'] = [];
   let memberCount = 0;
   let messageCount = 0;
+  /** Ids of the messages really emitted, so a reply never points at one that was left out. */
+  const emittedMessages = new Set<string>();
+
+  const joinedAtOf = (spec: MeetupSpec) => hoursAgo(now, (spec.messages[0]?.hours ?? 24) - 1);
+  const addMember = (meetupId: string, userKey: UserKey, joinedAt: Date) => {
+    // A number is used up for every candidate, present or not, so ids do not shift once an account appears.
+    memberCount += 1;
+    const memberUserId = authorId(userKey);
+    if (!memberUserId) return;
+    members.push({ id: demoId('member', memberCount), meetupId, userId: memberUserId, joinedAt });
+  };
 
   MEETUPS.forEach((spec, index) => {
     const meetupId = demoId('meetup', index + 1);
+    const hostId = authorId(spec.host);
+    if (!hostId) {
+      // The host is a sign-in account that is not seeded yet: skip the Meetup, keep the numbering.
+      memberCount += 1 + spec.members.length + (spec.demoUserJoins ? 1 : 0);
+      messageCount += spec.messages.length;
+      return;
+    }
     const startsAt = bangkokTime(now, spec.startDays, spec.startHour);
     meetups.push({
       id: meetupId,
@@ -363,22 +479,14 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
       startsAt,
       endsAt: new Date(startsAt.getTime() + spec.durationHours * 3_600_000),
       maxMembers: spec.maxMembers,
-      hostId: userId(spec.host),
+      hostId,
       placeId: placeAt(index).id,
       createdAt: hoursAgo(now, spec.messages[0]?.hours ?? 24),
     });
 
-    const memberIds = [spec.host, ...spec.members].map(userId);
-    if (spec.demoUserJoins && demoUserId) memberIds.push(demoUserId);
-    for (const memberUserId of memberIds) {
-      memberCount += 1;
-      members.push({
-        id: demoId('member', memberCount),
-        meetupId,
-        userId: memberUserId,
-        joinedAt: hoursAgo(now, (spec.messages[0]?.hours ?? 24) - 1),
-      });
-    }
+    const candidates: UserKey[] = [spec.host, ...spec.members];
+    if (spec.demoUserJoins) candidates.push('demoUser');
+    for (const candidate of candidates) addMember(meetupId, candidate, joinedAtOf(spec));
 
     const firstMessageNumber = messageCount + 1;
     let pinnedInMeetup = 0;
@@ -388,6 +496,7 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
       const common = { id: demoId('msg', messageCount), meetupId, createdAt, updatedAt: createdAt };
       if (message.author === 'system') {
         messages.push({ ...common, kind: 'SYSTEM', text: message.text, authorId: null });
+        emittedMessages.add(common.id);
         return;
       }
       const author = authorId(message.author);
@@ -399,20 +508,25 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
       }
       const pinned = Boolean(message.pinned) && pinnedInMeetup < MAX_PINNED_MESSAGES;
       if (pinned) pinnedInMeetup += 1;
+      const replyTarget =
+        message.replyTo === undefined
+          ? undefined
+          : demoId('msg', firstMessageNumber + message.replyTo - 1);
       messages.push({
         ...common,
         kind: message.image ? 'IMAGE' : 'TEXT',
         text: message.text,
         authorId: author,
         objectKey,
-        replyToId:
-          message.replyTo === undefined
-            ? undefined
-            : demoId('msg', firstMessageNumber + message.replyTo - 1),
+        replyToId: replyTarget && emittedMessages.has(replyTarget) ? replyTarget : undefined,
         pinnedAt: pinned ? new Date(createdAt.getTime() + 60_000) : undefined,
       });
+      emittedMessages.add(common.id);
     });
   });
+
+  // The second sign-in user also joins the first Meetup, so it holds a conversation with the first user.
+  addMember(demoId('meetup', 1), 'demoUser2', joinedAtOf(MEETUPS[0]!));
 
   const reviews: Prisma.ReviewCreateManyInput[] = [];
   REVIEWS.forEach((spec, index) => {
@@ -581,6 +695,44 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
     });
   }
 
+  if (demoUser2Id) {
+    const note = (
+      n: number,
+      hours: number,
+      data: Omit<Prisma.NotificationCreateManyInput, 'id' | 'userId' | 'createdAt'>,
+    ) =>
+      notifications.push({
+        id: demoId('notif', n),
+        userId: demoUser2Id,
+        createdAt: hoursAgo(now, hours),
+        ...data,
+      });
+    note(7, 48, {
+      type: 'MEETUP',
+      titleTh: 'คำขอเข้าร่วมได้รับอนุมัติ',
+      titleEn: 'Meetup request approved',
+      bodyTh: 'คุณสามารถเข้าแชตกลุ่มได้แล้ว',
+      bodyEn: 'You can now join the group chat.',
+      link: `/meetups/${demoId('meetup', 5)}`,
+    });
+    note(8, 3, {
+      type: 'MEETUP',
+      titleTh: 'ข้อความใหม่ในแชต Meetup',
+      titleEn: 'New Meetup chat message',
+      bodyTh: 'ผู้จัดกลุ่มส่งข้อความใหม่',
+      bodyEn: 'The host sent a new message',
+      link: `/meetups/${demoId('meetup', 5)}/chat`,
+      metadata: { kind: 'MEETUP_CHAT', meetupId: demoId('meetup', 5) },
+    });
+    note(9, 1, {
+      type: 'SYSTEM',
+      titleTh: 'ยินดีต้อนรับสู่ PetHub',
+      titleEn: 'Welcome to PetHub',
+      bodyTh: 'นี่คือข้อมูลตัวอย่างสำหรับการสาธิต',
+      bodyEn: 'This is sample data for the demo.',
+    });
+  }
+
   const reportAt = (hours: number) => hoursAgo(now, hours);
   const spamMessage = messages.find((m) => m.text?.startsWith('ลดราคาพิเศษ'));
   const rudeMessage = messages.find((m) => m.text?.startsWith('ทำไมต้องเสียเวลา'));
@@ -651,6 +803,7 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
 
   return {
     users,
+    pets,
     meetups,
     members,
     messages,

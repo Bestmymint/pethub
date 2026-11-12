@@ -21,8 +21,9 @@ export interface DemoDeps {
     remove: (key: string) => Promise<unknown>;
   };
   renderImage: (color: string) => Promise<Uint8Array>;
-  /** E-mail of the seeded demo user account, who gets sample data too. */
+  /** E-mails of the two seeded regular accounts, who get sample data too and chat in the same Meetups. */
   demoUserEmail?: string;
+  demoUser2Email?: string;
 }
 
 const TX_OPTIONS = { timeout: 60_000, maxWait: 10_000 } as const;
@@ -43,7 +44,7 @@ export async function createDemoData(deps: DemoDeps): Promise<DemoCounts> {
     select: { id: true, nameTh: true },
   });
   if (places.length === 0) throw new Error('DEMO_NO_PLACES');
-  const [province, category, demoUser] = await Promise.all([
+  const [province, category, demoUser, demoUser2] = await Promise.all([
     db.province
       .findFirst({ where: { code: '10' }, select: { id: true } })
       .then((found) => found ?? db.province.findFirstOrThrow({ select: { id: true } })),
@@ -54,6 +55,11 @@ export async function createDemoData(deps: DemoDeps): Promise<DemoCounts> {
       where: { email: deps.demoUserEmail ?? 'demo-user@example.com', deletedAt: null },
       select: { id: true },
     }),
+
+    db.user.findFirst({
+      where: { email: deps.demoUser2Email ?? 'demo-user2@example.com', deletedAt: null },
+      select: { id: true },
+    }),
   ]);
 
   const content = buildDemoContent({
@@ -62,6 +68,7 @@ export async function createDemoData(deps: DemoDeps): Promise<DemoCounts> {
     provinceId: province.id,
     categoryId: category.id,
     demoUserId: demoUser?.id ?? null,
+    demoUser2Id: demoUser2?.id ?? null,
   });
 
   // Photos first: the chat messages that show them are inserted next. Fixed keys, so a re-run overwrites.
@@ -72,6 +79,7 @@ export async function createDemoData(deps: DemoDeps): Promise<DemoCounts> {
   await db.$transaction(async (tx) => {
     const insert = { skipDuplicates: true } as const;
     counts.users = (await tx.user.createMany({ data: content.users, ...insert })).count;
+    counts.pets = (await tx.pet.createMany({ data: content.pets, ...insert })).count;
     counts.meetups = (await tx.meetup.createMany({ data: content.meetups, ...insert })).count;
     counts.members = (await tx.meetupMember.createMany({ data: content.members, ...insert })).count;
     counts.messages = (
@@ -158,6 +166,7 @@ export async function deleteDemoData(deps: DemoDeps): Promise<DemoCounts> {
       await tx.meetupMember.deleteMany({ where: { id: startsWith('member') } })
     ).count;
     counts.meetups = (await tx.meetup.deleteMany({ where: { id: startsWith('meetup') } })).count;
+    counts.pets = (await tx.pet.deleteMany({ where: { id: startsWith('pet') } })).count;
     counts.users = (
       await tx.user.deleteMany({
         where: { id: startsWith('user'), email: { endsWith: `@${DEMO_EMAIL_DOMAIN}` } },
