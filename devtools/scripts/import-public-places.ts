@@ -132,7 +132,10 @@ try {
       }
     });
   }
-  const total = await prisma.place.count({ where: { deletedAt: null, isVisible: true } });
+  // Count only imported rows so user submissions (or other sources) never break a re-run.
+  const total = await prisma.place.count({
+    where: { source: 'OPEN_DATA', deletedAt: null, isVisible: true },
+  });
   if (total !== manifest.placeCount)
     throw new Error(`Expected ${manifest.placeCount} public places after import, found ${total}`);
   console.log(`Imported ${total} public places.`);

@@ -47,6 +47,10 @@ and the meetup worker. Start-up order is enforced with `service_healthy` / `serv
 > `DEMO_APP_PORT` and `DEMO_MAILPIT_PORT` to change the published ports (the app origin follows `DEMO_APP_PORT`;
 > `DEMO_APP_HOST` / `DEMO_APP_SCHEME` change it further).
 
+Nominatim (address search and reverse geocoding) requires an identifying `User-Agent`, and it rejects fake
+contacts such as `example.com`. The demo defaults `NOMINATIM_CONTACT_EMAIL` to this repository URL via
+`DEMO_NOMINATIM_CONTACT`. For any real deployment set it to your own real contact (Nominatim usage policy).
+
 Application rate limits (sign-in, uploads, reviews, meetups) are **off** in this demo stack via
 `RATE_LIMIT_DISABLED=true`. Run with `DEMO_RATE_LIMIT_DISABLED=false` to enforce them. Outside this file the
 variable is unset, so limits stay on. The 1 request/second `/api/geocode` throttle is never affected, because it
