@@ -7,6 +7,7 @@
 
 export type DemoKind =
   | 'user'
+  | 'pet'
   | 'meetup'
   | 'member'
   | 'msg'
@@ -52,6 +53,7 @@ export const DEMO_AUDIT = {
 
 export interface DemoCounts {
   users: number;
+  pets: number;
   meetups: number;
   members: number;
   messages: number;
@@ -64,6 +66,7 @@ export interface DemoCounts {
 
 export const emptyDemoCounts = (): DemoCounts => ({
   users: 0,
+  pets: 0,
   meetups: 0,
   members: 0,
   messages: 0,
@@ -76,6 +79,7 @@ export const emptyDemoCounts = (): DemoCounts => ({
 
 const countLabels: Array<[keyof DemoCounts, string]> = [
   ['users', 'สมาชิก'],
+  ['pets', 'สัตว์เลี้ยง'],
   ['meetups', 'Meetup'],
   ['members', 'ผู้เข้าร่วม'],
   ['messages', 'ข้อความแชต'],

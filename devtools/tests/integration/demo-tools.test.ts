@@ -50,6 +50,7 @@ describe('Admin demo-data tools', () => {
 
   const demoRowCounts = async () => ({
     users: await prisma.user.count({ where: { id: { startsWith: demoIdPrefix('user') } } }),
+    pets: await prisma.pet.count({ where: { id: { startsWith: demoIdPrefix('pet') } } }),
     meetups: await prisma.meetup.count({ where: { id: { startsWith: demoIdPrefix('meetup') } } }),
     members: await prisma.meetupMember.count({
       where: { id: { startsWith: demoIdPrefix('member') } },

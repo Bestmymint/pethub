@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { buildDemoContent, type DemoRefs } from '@/features/demo/demo-content';
+import { MEMBER_PETS } from '@/features/demo/demo-pets';
 import { isDemoId } from '@/features/demo/demo-config';
 import { MAX_PINNED_MESSAGES } from '@/features/meetups/chat-pins';
 
@@ -15,6 +16,7 @@ const refs = (overrides: Partial<DemoRefs> = {}): DemoRefs => ({
   provinceId: 'province-1',
   categoryId: 'category-1',
   demoUserId: 'real-demo-user',
+  demoUser2Id: 'real-demo-user-2',
   ...overrides,
 });
 
@@ -140,15 +142,107 @@ describe('buildDemoContent', () => {
     expect(content.placeReports.length).toBeGreaterThanOrEqual(2);
   });
 
-  it('gives the demo user notifications of several types', () => {
-    expect(content.notifications.every((n) => n.userId === 'real-demo-user')).toBe(true);
-    expect(new Set(content.notifications.map((n) => n.type)).size).toBeGreaterThanOrEqual(4);
+  it('gives each sign-in user notifications, the first one of several types', () => {
+    const forUser = content.notifications.filter((n) => n.userId === 'real-demo-user');
+    expect(new Set(forUser.map((n) => n.type)).size).toBeGreaterThanOrEqual(4);
+    expect(
+      content.notifications.filter((n) => n.userId === 'real-demo-user-2').length,
+    ).toBeGreaterThanOrEqual(2);
+    expect(
+      content.notifications.every((n) => ['real-demo-user', 'real-demo-user-2'].includes(n.userId)),
+    ).toBe(true);
+  });
+
+  it('puts the two sign-in users together in Meetups where they can really talk', () => {
+    const membersOf = (meetupId: string) =>
+      new Set(content.members.filter((m) => m.meetupId === meetupId).map((m) => m.userId));
+    const together = content.meetups.filter((meetup) => {
+      const members = membersOf(meetup.id as string);
+      return members.has('real-demo-user') && members.has('real-demo-user-2');
+    });
+    expect(together.length).toBeGreaterThanOrEqual(3);
+    // At least one open Meetup is hosted by each of them, with the other as a member.
+    const hostedBy = (userId: string) =>
+      content.meetups.filter(
+        (m) => m.hostId === userId && m.status === 'OPEN' && (m.startsAt as Date) > now,
+      );
+    expect(hostedBy('real-demo-user').length).toBeGreaterThanOrEqual(1);
+    expect(hostedBy('real-demo-user-2').length).toBeGreaterThanOrEqual(1);
+    for (const meetup of hostedBy('real-demo-user'))
+      expect(membersOf(meetup.id as string).has('real-demo-user-2')).toBe(true);
+    for (const meetup of hostedBy('real-demo-user-2'))
+      expect(membersOf(meetup.id as string).has('real-demo-user')).toBe(true);
+  });
+
+  it('keeps one membership per person and Meetup', () => {
+    const pairs = content.members.map((m) => `${m.meetupId}:${m.userId}`);
+    expect(new Set(pairs).size).toBe(pairs.length);
+  });
+
+  it('gives every made-up member their pets, owned by that member and marked as demo data', () => {
+    expect(content.pets).toHaveLength(MEMBER_PETS.flat().length);
+    const owners = new Set(content.pets.map((pet) => pet.ownerId));
+    expect(owners).toEqual(new Set(content.users.map((user) => user.id)));
+    expect(content.pets.every((pet) => pet.id!.startsWith('demo_pet_'))).toBe(true);
+    expect(new Set(content.pets.map((pet) => pet.id)).size).toBe(content.pets.length);
   });
 });
 
 describe('buildDemoContent edge cases', () => {
+  it('leaves out the second user’s rows and its hosted Meetup until that account is seeded', () => {
+    const content = buildDemoContent(refs({ demoUser2Id: null }));
+    const everyUserId = [
+      ...content.members.map((m) => m.userId),
+      ...content.reviews.map((r) => r.userId),
+      ...content.notifications.map((n) => n.userId),
+      ...content.meetups.map((m) => m.hostId),
+      ...content.messages.map((m) => m.authorId),
+    ];
+    expect(everyUserId).not.toContain('real-demo-user-2');
+    expect(content.meetups.map((m) => m.id)).not.toContain('demo_meetup_6');
+    expect(content.meetups.map((m) => m.id)).toContain('demo_meetup_5');
+  });
+
+  it('never replies to a message that was left out', () => {
+    for (const refsCase of [
+      refs({ demoUser2Id: null }),
+      refs({ demoUserId: null }),
+      refs({ demoUserId: null, demoUser2Id: null }),
+    ]) {
+      const content = buildDemoContent(refsCase);
+      const ids = new Set(content.messages.map((message) => message.id));
+      for (const message of content.messages)
+        if (message.replyToId) expect(ids.has(message.replyToId), String(message.id)).toBe(true);
+    }
+  });
+
+  it('gives every row the same id whether or not the second user exists yet, so a later run only adds', () => {
+    const before = buildDemoContent(refs({ demoUser2Id: null }));
+    const after = buildDemoContent(refs());
+    const sameRows = <T extends { id?: string | null }>(a: T[], b: T[]) => {
+      const byId = new Map(b.map((row) => [row.id, row]));
+      for (const row of a) expect(byId.get(row.id), String(row.id)).toEqual(row);
+    };
+    sameRows(before.meetups, after.meetups);
+    sameRows(before.members, after.members);
+    // A reply to a message that was left out has no reply link; a later run does not add it (insert-if-missing).
+    const withoutReplyLink = (rows: typeof before.messages) =>
+      rows.map(({ replyToId, ...rest }) => (void replyToId, rest));
+    sameRows(withoutReplyLink(before.messages), withoutReplyLink(after.messages));
+    sameRows(before.reviews, after.reviews);
+    sameRows(before.notifications, after.notifications);
+    expect(after.members.length).toBeGreaterThan(before.members.length);
+  });
+
+  it('skips a Meetup whose host account is missing but keeps numbering stable', () => {
+    const without = buildDemoContent(refs({ demoUserId: null, demoUser2Id: null }));
+    expect(without.meetups.map((m) => m.id)).not.toContain('demo_meetup_5');
+    expect(without.meetups.map((m) => m.id)).not.toContain('demo_meetup_6');
+    expect(without.meetups).toHaveLength(4);
+  });
+
   it('still works without the demo user account, leaving out its rows', () => {
-    const content = buildDemoContent(refs({ demoUserId: null }));
+    const content = buildDemoContent(refs({ demoUserId: null, demoUser2Id: null }));
     expect(content.notifications).toHaveLength(0);
     expect(content.members.every((m) => m.userId.startsWith('demo_user_'))).toBe(true);
     expect(content.reviews.every((r) => r.userId.startsWith('demo_user_'))).toBe(true);

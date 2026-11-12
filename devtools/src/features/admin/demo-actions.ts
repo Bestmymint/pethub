@@ -37,6 +37,7 @@ async function run(
       storage: { put: putObject, remove: deleteObject },
       renderImage,
       demoUserEmail: process.env.SEED_USER_EMAIL,
+      demoUser2Email: process.env.SEED_USER2_EMAIL,
     });
     for (const path of ['/admin', '/meetups', '/my-meetups', '/notifications'])
       revalidatePath(path);

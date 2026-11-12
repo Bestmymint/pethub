@@ -3,13 +3,14 @@
 #
 #   sh infra/scripts/smoke-demo.sh
 #
-# Checks: readiness, login as the seeded demo user, PNG upload to the S3-compatible store,
+# Checks: readiness, login as the seeded demo user and as the second demo user, PNG upload to the S3-compatible store,
 # byte-for-byte read-back through the app's media endpoint, and rejection of a non-image upload.
-# Overrides: SMOKE_BASE_URL (or DEMO_APP_PORT), DEMO_USER_EMAIL, DEMO_PASSWORD, SMOKE_WAIT_SECONDS.
+# Overrides: SMOKE_BASE_URL (or DEMO_APP_PORT), DEMO_USER_EMAIL, DEMO_USER2_EMAIL, DEMO_PASSWORD, SMOKE_WAIT_SECONDS.
 set -eu
 
 BASE="${SMOKE_BASE_URL:-${SMOKE_SCHEME:-http}://127.0.0.1:${DEMO_APP_PORT:-3000}}"
 EMAIL="${DEMO_USER_EMAIL:-demo-user@example.com}"
+EMAIL2="${DEMO_USER2_EMAIL:-demo-user2@example.com}"
 PASSWORD="${DEMO_PASSWORD:-PetHub-Demo-2026}"
 WAIT="${SMOKE_WAIT_SECONDS:-180}"
 TMP="$(mktemp -d)"
@@ -35,6 +36,13 @@ status="$(curl -sS -m 20 -o "$TMP/login.json" -D "$TMP/login.headers" -w '%{http
 COOKIE="$(sed -n 's/^[Ss]et-[Cc]ookie: \([^;]*\).*/\1/p' "$TMP/login.headers" | tr -d '\r' | paste -sd ';' - | sed 's/;/; /g')"
 [ -n "$COOKIE" ] || fail "login returned no session cookie"
 ok "login as $EMAIL"
+
+# 2b. the second regular user (the other person in a two-window chat test) signs in with the same password
+status="$(curl -sS -m 20 -o /dev/null -w '%{http_code}' \
+  -H 'Content-Type: application/json' -H "Origin: $BASE" \
+  -d "{\"email\":\"$EMAIL2\",\"password\":\"$PASSWORD\"}" "$BASE/api/auth/sign-in/email")"
+[ "$status" = 200 ] || fail "login as $EMAIL2 returned HTTP $status"
+ok "login as $EMAIL2"
 
 # 3. upload a valid 1x1 PNG
 printf '%s' 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==' | base64 -d > "$TMP/dot.png"
