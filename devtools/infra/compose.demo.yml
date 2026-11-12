@@ -136,6 +136,8 @@ services:
       # DEMO ONLY: disables every application rate limit (auth, uploads, reviews, meetups; not the geocode throttle) so demos and
       # smoke tests are never throttled. Set DEMO_RATE_LIMIT_DISABLED=false to turn the limits back on.
       RATE_LIMIT_DISABLED: ${DEMO_RATE_LIMIT_DISABLED:-true}
+      # DEMO ONLY: shows the admin overview's sample-data buttons. Absent or not exactly "true" means off.
+      DEMO_TOOLS_ENABLED: 'true'
     # Default 0.0.0.0 for the course box's port forwards; DEMO_BIND_ADDRESS=127.0.0.1 keeps it private.
     ports:
       - '${DEMO_BIND_ADDRESS:-0.0.0.0}:${DEMO_APP_PORT:-3000}:3000'

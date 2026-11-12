@@ -77,6 +77,14 @@ the **same password, `PetHub-Demo-2026`**. Override the password with `DEMO_PASS
 > Run `docker compose -f infra/compose.demo.yml down -v` once (this deletes the demo database and uploaded
 > files), then `up -d --build` again, so the accounts are created with the shared password.
 
+**Sample data.** In this demo stack (`DEMO_TOOLS_ENABLED=true`, set only in `compose.demo.yml`) the admin overview
+has a "ข้อมูลตัวอย่าง (Demo)" card. Sign in as the admin and press **สร้างข้อมูลตัวอย่าง** to fill the site with
+Thai sample Meetups (with members and chat, including pinned messages), reviews, submissions in several statuses,
+notifications, and open reports of every kind. It is safe to press again: nothing is duplicated. **ลบข้อมูลตัวอย่าง**
+removes exactly what was created (every sample row has an id starting with `demo_`), recalculates place ratings, and
+never touches the imported places, real users or the two demo accounts. Each press is written to the audit log. With
+the variable absent or not `true` (every other environment) the card is hidden and the action refuses.
+
 > **Demo only.** Every default in that file (database password, `BETTER_AUTH_SECRET`, S3 keys, account passwords)
 > is public in this repository. Override all `DEMO_*` variables for anything beyond a local demo. Use
 > `DEMO_APP_PORT` and `DEMO_MAILPIT_PORT` to change the published ports (the app origin follows `DEMO_APP_PORT`;
