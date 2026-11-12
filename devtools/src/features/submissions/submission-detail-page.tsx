@@ -70,7 +70,7 @@ export async function SubmissionDetailPage({ id, locale }: { id: string; locale:
               href={withLocale(locale, '/my-submissions')}
               className="text-sm font-bold text-[var(--forest)] hover:underline"
             >
-              ← {isThai ? 'รายการที่ส่งของฉัน' : 'My submissions'}
+              ← {isThai ? 'รายการที่ฉันส่ง' : 'My submissions'}
             </a>
             <h1 className="mt-3 text-3xl font-black">
               {isThai ? proposed.nameTh : proposed.nameEn || proposed.nameTh}

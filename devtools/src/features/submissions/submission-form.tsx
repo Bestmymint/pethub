@@ -5,6 +5,7 @@ import {
   ArrowRight,
   Check,
   ImagePlus,
+  LocateFixed,
   MapPin,
   Save,
   Search,
@@ -12,7 +13,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type ChangeEvent } from 'react';
 import { toast } from 'sonner';
 
 import { useBrandLoading } from '@/components/brand-loading';
@@ -20,7 +21,18 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input, Select, Textarea } from '@/components/ui/field';
 import { saveSubmission, type SubmissionInput } from '@/features/submissions/actions';
+import { planAreaUpdate } from '@/features/submissions/area-lookup';
+import {
+  clampPoint,
+  formatCoordinate,
+  latitudeRange,
+  longitudeRange,
+  parseCoordinate,
+  type CoordinatePoint,
+} from '@/features/submissions/coordinates';
+import { MapPinPicker } from '@/features/submissions/map-pin-picker';
 import { categoryDefinitions, type DistrictSummary, type ProvinceSummary } from '@/lib/domain';
+import { canSubmitFromStep, firstInvalidControl } from '@/lib/form-validation';
 import type { Locale } from '@/lib/i18n';
 import { withLocale } from '@/lib/i18n';
 
@@ -61,6 +73,25 @@ const steps = [
   ['หลักฐานและตรวจทาน', 'Evidence & review'],
 ] as const;
 
+type FieldControl = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
+
+interface ReverseAreaResponse {
+  province: { code: string; nameTh: string } | null;
+  district: { code: string; nameTh: string } | null;
+  matched: string;
+}
+
+/** Every step section carries `data-step`, so an invalid control can reveal its own step. */
+function stepOf(control: Element) {
+  const section = control.closest('[data-step]');
+  const index = Number(section?.getAttribute('data-step') ?? 0);
+  return Number.isInteger(index) ? index : 0;
+}
+
+function controlsOf(scope: HTMLFormElement | Element) {
+  return [...scope.querySelectorAll<FieldControl>('input, textarea, select')];
+}
+
 export function SubmissionForm({
   locale,
   initial,
@@ -79,6 +110,12 @@ export function SubmissionForm({
   const [districts, setDistricts] = useState<DistrictSummary[]>([]);
   const [provinceCode, setProvinceCode] = useState(initial?.provinceCode ?? '');
   const [districtCode, setDistrictCode] = useState(initial?.districtCode ?? '');
+  const [latitudeText, setLatitudeText] = useState(
+    initial?.latitude === undefined ? '' : formatCoordinate(initial.latitude),
+  );
+  const [longitudeText, setLongitudeText] = useState(
+    initial?.longitude === undefined ? '' : formatCoordinate(initial.longitude),
+  );
   const [images, setImages] = useState<UploadedImage[]>(
     initial?.imageKeys.map((objectKey, index) => ({
       objectKey,
@@ -87,10 +124,37 @@ export function SubmissionForm({
     })) ?? [],
   );
   const [formError, setFormError] = useState<string>();
+  const [stepAlert, setStepAlert] = useState<string>();
+  const [focusTick, setFocusTick] = useState(0);
+  const pendingFocus = useRef<FieldControl | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string[]>>({});
   const [geocodeResults, setGeocodeResults] = useState<
     Array<{ displayName: string; latitude: number; longitude: number }>
   >([]);
+  const [areaNote, setAreaNote] = useState<string>();
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState<string>();
+  const pendingDistrict = useRef<string | undefined>(undefined);
+  /**
+   * Live copies of the province and its district list. Async callbacks (the
+   * reverse lookup and its retry) read these instead of render-time values.
+   */
+  const provinceCodeRef = useRef(provinceCode);
+  const districtsRef = useRef<DistrictSummary[]>([]);
+  const areaLookup = useRef<{
+    controller?: AbortController;
+    key?: string;
+    sequence: number;
+    retryTimer?: ReturnType<typeof setTimeout>;
+  }>({ sequence: 0 });
+  const geocodeSequence = useRef(0);
+
+  function changeProvince(code: string) {
+    provinceCodeRef.current = code;
+    setProvinceCode(code);
+    districtsRef.current = [];
+    setDistricts([]);
+  }
 
   useEffect(() => {
     void fetch('/api/geography')
@@ -99,10 +163,36 @@ export function SubmissionForm({
   }, []);
   useEffect(() => {
     if (!provinceCode) return;
+    let current = true;
     void fetch(`/api/geography?province=${provinceCode}`)
       .then((response) => response.json())
-      .then((data: { districts: DistrictSummary[] }) => setDistricts(data.districts));
+      .then((data: { districts: DistrictSummary[] }) => {
+        // A list for a province the user has already left must not land.
+        if (!current || provinceCodeRef.current !== provinceCode) return;
+        districtsRef.current = data.districts;
+        setDistricts(data.districts);
+        // The reverse lookup may have resolved a district before this list arrived.
+        const wanted = pendingDistrict.current;
+        pendingDistrict.current = undefined;
+        if (wanted !== undefined)
+          setDistrictCode(
+            data.districts.some((district) => district.code === wanted) ? wanted : '',
+          );
+      });
+    return () => {
+      current = false;
+    };
   }, [provinceCode]);
+  useEffect(() => {
+    const lookup = areaLookup.current;
+    return () => {
+      // Unmount: cancel the in-flight lookup and its retry, and drop late answers.
+      lookup.sequence += 1;
+      lookup.controller?.abort();
+      if (lookup.retryTimer) clearTimeout(lookup.retryTimer);
+      geocodeSequence.current += 1;
+    };
+  }, []);
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => {
       if (dirty) event.preventDefault();
@@ -112,6 +202,183 @@ export function SubmissionForm({
   }, [dirty]);
 
   const progress = useMemo(() => `${((step + 1) / steps.length) * 100}%`, [step]);
+
+  /** The pin follows only fully valid, in-range coordinates; partial typing is ignored. */
+  const mapPoint = useMemo<CoordinatePoint | undefined>(() => {
+    const latitude = parseCoordinate(latitudeText, 'latitude');
+    const longitude = parseCoordinate(longitudeText, 'longitude');
+    return latitude === undefined || longitude === undefined ? undefined : { latitude, longitude };
+  }, [latitudeText, longitudeText]);
+
+  function setPoint(point: CoordinatePoint) {
+    setLatitudeText(formatCoordinate(point.latitude));
+    setLongitudeText(formatCoordinate(point.longitude));
+    setDirty(true);
+    void lookupAreas(point);
+  }
+
+  /**
+   * Fills province/district from the pin. Fired only by discrete events (map
+   * click, marker drag end, coordinate blur, GPS, address pick), never on move.
+   */
+  async function lookupAreas(point: CoordinatePoint, attempt = 0) {
+    const key = `${point.latitude.toFixed(3)},${point.longitude.toFixed(3)}`;
+    const state = areaLookup.current;
+    // Same pin as last time: keep whatever the user picked by hand.
+    if (attempt === 0 && state.key === key) return;
+    state.key = key;
+    state.controller?.abort();
+    if (state.retryTimer) clearTimeout(state.retryTimer);
+    state.retryTimer = undefined;
+    const controller = new AbortController();
+    state.controller = controller;
+    // Request id: only the newest lookup may touch the form.
+    const sequence = (state.sequence += 1);
+    try {
+      const response = await fetch(
+        `/api/geocode?reverse=1&lat=${point.latitude}&lng=${point.longitude}`,
+        { signal: controller.signal },
+      );
+      if (sequence !== state.sequence) return;
+      if (response.status === 429 && attempt === 0) {
+        // The shared 1 req/s throttle: wait out one window, then try once more.
+        state.retryTimer = setTimeout(() => {
+          state.retryTimer = undefined;
+          if (state.key === key && sequence === state.sequence) void lookupAreas(point, 1);
+        }, 1_200);
+        return;
+      }
+      const data = (await response.json()) as ReverseAreaResponse & { error?: string };
+      if (sequence !== state.sequence) return;
+      if (!response.ok || data.error) {
+        setAreaNote(
+          isThai
+            ? 'ตรวจหาจังหวัดและอำเภอจากพิกัดไม่สำเร็จ กรุณาเลือกเอง'
+            : 'Could not resolve the province and district. Please pick them yourself.',
+        );
+        return;
+      }
+      if (!data.province) {
+        setAreaNote(
+          isThai
+            ? 'ไม่พบจังหวัดที่ตรงกับพิกัดนี้ กรุณาเลือกจังหวัดและอำเภอเอง'
+            : 'No province matched this pin. Please pick the province and district yourself.',
+        );
+        return;
+      }
+      // Current values from refs, not the ones captured when this lookup started.
+      const update = planAreaUpdate(
+        provinceCodeRef.current,
+        districtsRef.current.map((district) => district.code),
+        data,
+      );
+      if (update.kind === 'same-province') {
+        // Same province: keep its district list; never clear the user's district.
+        if (update.districtCode) setDistrictCode(update.districtCode);
+        else if (update.pendingDistrict) pendingDistrict.current = update.pendingDistrict;
+      } else if (update.kind === 'new-province') {
+        // New province: its districts load in the effect, which then applies this.
+        pendingDistrict.current = update.pendingDistrict;
+        setDistrictCode('');
+        changeProvince(update.provinceCode);
+      }
+      setAreaNote(
+        data.district
+          ? isThai
+            ? `เติมจังหวัด ${data.province.nameTh} และอำเภอ ${data.district.nameTh} ให้แล้ว`
+            : `Filled in ${data.province.nameTh} / ${data.district.nameTh}`
+          : isThai
+            ? `เติมจังหวัด ${data.province.nameTh} ให้แล้ว ไม่พบอำเภอ กรุณาเลือกอำเภอเอง`
+            : `Filled in ${data.province.nameTh}. No district matched, please pick one.`,
+      );
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      if (sequence !== state.sequence) return;
+      if (error instanceof TypeError)
+        setAreaNote(
+          isThai
+            ? 'ตรวจหาพื้นที่จากพิกัดไม่สำเร็จ กรุณาเลือกเอง'
+            : 'Could not resolve the area. Please pick it yourself.',
+        );
+    }
+  }
+
+  function useCurrentLocation() {
+    setLocationError(undefined);
+    if (!window.isSecureContext) {
+      setLocationError(
+        isThai
+          ? 'เบราว์เซอร์อนุญาตตำแหน่งเฉพาะ https หรือ localhost กรุณากรอกพิกัดเอง'
+          : 'Location needs https or localhost. Enter the coordinates instead.',
+      );
+      return;
+    }
+    if (!navigator.geolocation) {
+      setLocationError(
+        isThai
+          ? 'เบราว์เซอร์นี้ไม่รองรับการหาตำแหน่ง กรุณากรอกพิกัดเอง'
+          : 'This browser cannot read your location. Enter the coordinates instead.',
+      );
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        setPoint(
+          clampPoint({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }),
+        );
+      },
+      (error) => {
+        setLocating(false);
+        setLocationError(
+          error.code === error.PERMISSION_DENIED
+            ? isThai
+              ? 'คุณยังไม่ได้อนุญาตให้เข้าถึงตำแหน่ง กรุณาอนุญาตหรือกรอกพิกัดเอง'
+              : 'Location permission was denied. Allow it or enter the coordinates.'
+            : error.code === error.TIMEOUT
+              ? isThai
+                ? 'ขอตำแหน่งไม่ทันเวลา กรุณาลองใหม่หรือกรอกพิกัดเอง'
+                : 'Getting your location timed out. Retry or enter the coordinates.'
+              : isThai
+                ? 'ระบุตำแหน่งไม่ได้ กรุณาลองใหม่หรือกรอกพิกัดเอง'
+                : 'Your location is unavailable. Retry or enter the coordinates.',
+        );
+      },
+      { enableHighAccuracy: false, timeout: 10_000, maximumAge: 60_000 },
+    );
+  }
+
+  // Native constraint validation cannot focus a control inside a hidden step, so
+  // the browser silently blocks submit. Reveal the step first, then report it.
+  useEffect(() => {
+    const control = pendingFocus.current;
+    if (!control) return;
+    pendingFocus.current = null;
+    control.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    control.reportValidity();
+    control.focus({ preventScroll: true });
+  }, [focusTick]);
+
+  function revealInvalid(control: FieldControl) {
+    const target = stepOf(control);
+    setStep(target);
+    setStepAlert(
+      isThai
+        ? `กรุณากรอกข้อมูลให้ครบในขั้นตอนที่ ${target + 1}: ${steps[target]?.[0] ?? ''}`
+        : `Please complete step ${target + 1}: ${steps[target]?.[1] ?? ''}`,
+    );
+    pendingFocus.current = control;
+    setFocusTick((value) => value + 1);
+  }
+
+  /** Returns the first invalid control of one step (or of the whole form). */
+  function firstInvalid(scope: HTMLFormElement | Element) {
+    return firstInvalidControl(controlsOf(scope));
+  }
 
   function inputFromForm(form: HTMLFormElement): SubmissionInput {
     const values = new FormData(form);
@@ -143,7 +410,14 @@ export function SubmissionForm({
   async function persist(form: HTMLFormElement, intent: 'draft' | 'submit') {
     setPending(true);
     setFormError(undefined);
+    setStepAlert(undefined);
     setFieldErrors({});
+    const invalid = firstInvalid(form);
+    if (intent === 'submit' && invalid) {
+      setPending(false);
+      revealInvalid(invalid);
+      return;
+    }
     const result = await saveSubmission(inputFromForm(form), intent);
     setPending(false);
     if (!result.ok) {
@@ -210,18 +484,43 @@ export function SubmissionForm({
   async function geocode(form: HTMLFormElement) {
     const query = String(new FormData(form).get('addressTh') ?? '').trim();
     if (query.length < 3) return;
+    // Only the newest search may replace the result list.
+    const sequence = (geocodeSequence.current += 1);
     const response = await fetch(`/api/geocode?q=${encodeURIComponent(query)}`);
     const data = (await response.json()) as {
       results?: Array<{ displayName: string; latitude: number; longitude: number }>;
     };
+    if (sequence !== geocodeSequence.current) return;
     setGeocodeResults(data.results ?? []);
   }
 
+  function nextStep(form: HTMLFormElement) {
+    const section = form.querySelector(`[data-step="${step}"]`);
+    const invalid = section ? firstInvalid(section) : undefined;
+    if (invalid) {
+      revealInvalid(invalid);
+      return;
+    }
+    setStepAlert(undefined);
+    setStep((value) => value + 1);
+  }
+
   return (
+    // The key handler only blocks implicit submission; it adds no interaction of its own.
+    // eslint-disable-next-line jsx-a11y/no-noninteractive-element-interactions
     <form
       className="mx-auto max-w-4xl"
+      noValidate
+      onKeyDown={(event) => {
+        // Enter in a single-line field must never submit the whole form.
+        if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
+          const type = event.target.type;
+          if (type !== 'checkbox' && type !== 'file') event.preventDefault();
+        }
+      }}
       onSubmit={(event) => {
         event.preventDefault();
+        if (!canSubmitFromStep(step, steps.length)) return;
         void persist(event.currentTarget, 'submit');
       }}
       onChange={() => setDirty(true)}
@@ -251,7 +550,19 @@ export function SubmissionForm({
       </ol>
 
       <section className="surface p-6 sm:p-8">
-        <div className={step === 0 ? 'grid gap-5' : 'hidden'} aria-hidden={step !== 0}>
+        {stepAlert && (
+          <div
+            role="alert"
+            className="mb-5 rounded-2xl border border-[var(--terracotta)] bg-[var(--terracotta-soft)] p-4 text-sm font-semibold text-[var(--terracotta)]"
+          >
+            {stepAlert}
+          </div>
+        )}
+        <div
+          className={step === 0 ? 'grid gap-5' : 'hidden'}
+          aria-hidden={step !== 0}
+          data-step={0}
+        >
           <div>
             <p className="eyebrow">01 — {isThai ? 'ข้อมูลพื้นฐาน' : 'Basics'}</p>
             <h1 className="mt-2 text-3xl font-black">
@@ -330,7 +641,11 @@ export function SubmissionForm({
           </div>
         </div>
 
-        <div className={step === 1 ? 'grid gap-5' : 'hidden'} aria-hidden={step !== 1}>
+        <div
+          className={step === 1 ? 'grid gap-5' : 'hidden'}
+          aria-hidden={step !== 1}
+          data-step={1}
+        >
           <div>
             <p className="eyebrow">02 — {isThai ? 'ตำแหน่ง' : 'Location'}</p>
             <h2 className="mt-2 text-3xl font-black">
@@ -356,9 +671,10 @@ export function SubmissionForm({
                 required
                 value={provinceCode}
                 onChange={(event) => {
-                  setProvinceCode(event.target.value);
+                  // A pending district belongs to the previous province.
+                  pendingDistrict.current = undefined;
                   setDistrictCode('');
-                  setDistricts([]);
+                  changeProvince(event.target.value);
                 }}
               >
                 <option value="">{isThai ? 'เลือกจังหวัด' : 'Choose province'}</option>
@@ -396,10 +712,14 @@ export function SubmissionForm({
                     required
                     type="number"
                     step="any"
-                    min="5"
-                    max="21"
+                    min={latitudeRange.min}
+                    max={latitudeRange.max}
                     placeholder="13.7563"
-                    defaultValue={initial?.latitude}
+                    value={latitudeText}
+                    onChange={(event) => setLatitudeText(event.target.value)}
+                    onBlur={() => {
+                      if (mapPoint) void lookupAreas(mapPoint);
+                    }}
                   />
                 </label>
                 <label className="grid gap-1 text-xs font-bold">
@@ -409,10 +729,14 @@ export function SubmissionForm({
                     required
                     type="number"
                     step="any"
-                    min="97"
-                    max="106"
+                    min={longitudeRange.min}
+                    max={longitudeRange.max}
                     placeholder="100.5018"
-                    defaultValue={initial?.longitude}
+                    value={longitudeText}
+                    onChange={(event) => setLongitudeText(event.target.value)}
+                    onBlur={() => {
+                      if (mapPoint) void lookupAreas(mapPoint);
+                    }}
                   />
                 </label>
               </div>
@@ -424,7 +748,36 @@ export function SubmissionForm({
                 <Search className="size-4" />
                 {isThai ? 'ค้นหาจากที่อยู่' : 'Search address'}
               </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={useCurrentLocation}
+                disabled={locating}
+              >
+                <LocateFixed className="size-4" />
+                {locating
+                  ? isThai
+                    ? 'กำลังหาตำแหน่ง…'
+                    : 'Locating…'
+                  : isThai
+                    ? 'ใช้ตำแหน่งปัจจุบัน'
+                    : 'Use my location'}
+              </Button>
             </div>
+            {(areaNote || locationError) && (
+              <div className="mt-3 grid gap-1 text-xs">
+                {areaNote && (
+                  <p role="status" className="font-semibold text-[var(--text-muted)]">
+                    {areaNote}
+                  </p>
+                )}
+                {locationError && (
+                  <p role="alert" className="font-semibold text-[var(--terracotta)]">
+                    {locationError}
+                  </p>
+                )}
+              </div>
+            )}
             {geocodeResults.length > 0 && (
               <div className="mt-3 grid gap-2">
                 {geocodeResults.map((result) => (
@@ -432,16 +785,9 @@ export function SubmissionForm({
                     key={`${result.latitude}-${result.longitude}`}
                     type="button"
                     className="flex items-start gap-2 rounded-xl bg-[var(--surface)] p-3 text-left text-xs hover:ring-2 hover:ring-[var(--forest-bright)]"
-                    onClick={(event) => {
-                      const form = event.currentTarget.form!;
-                      (form.elements.namedItem('latitude') as HTMLInputElement).value = String(
-                        result.latitude,
-                      );
-                      (form.elements.namedItem('longitude') as HTMLInputElement).value = String(
-                        result.longitude,
-                      );
+                    onClick={() => {
+                      setPoint({ latitude: result.latitude, longitude: result.longitude });
                       setGeocodeResults([]);
-                      setDirty(true);
                     }}
                   >
                     <MapPin className="mt-0.5 size-4 shrink-0 text-[var(--forest)]" />
@@ -451,6 +797,7 @@ export function SubmissionForm({
               </div>
             )}
           </div>
+          {step === 1 && <MapPinPicker locale={locale} point={mapPoint} onPick={setPoint} />}
           <p className="flex items-start gap-2 text-sm text-[var(--text-muted)]">
             <MapPin className="mt-0.5 size-4 shrink-0" />
             {isThai
@@ -459,7 +806,11 @@ export function SubmissionForm({
           </p>
         </div>
 
-        <div className={step === 2 ? 'grid gap-6' : 'hidden'} aria-hidden={step !== 2}>
+        <div
+          className={step === 2 ? 'grid gap-6' : 'hidden'}
+          aria-hidden={step !== 2}
+          data-step={2}
+        >
           <div>
             <p className="eyebrow">03 — {isThai ? 'กฎสัตว์เลี้ยง' : 'Pet rules'}</p>
             <h2 className="mt-2 text-3xl font-black">
@@ -525,7 +876,11 @@ export function SubmissionForm({
           </div>
         </div>
 
-        <div className={step === 3 ? 'grid gap-6' : 'hidden'} aria-hidden={step !== 3}>
+        <div
+          className={step === 3 ? 'grid gap-6' : 'hidden'}
+          aria-hidden={step !== 3}
+          data-step={3}
+        >
           <div>
             <p className="eyebrow">04 — {isThai ? 'หลักฐานและตรวจทาน' : 'Evidence & review'}</p>
             <h2 className="mt-2 text-3xl font-black">
@@ -617,7 +972,14 @@ export function SubmissionForm({
       <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
         <div>
           {step > 0 && (
-            <Button variant="ghost" onClick={() => setStep((value) => value - 1)}>
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => {
+                setStepAlert(undefined);
+                setStep((value) => value - 1);
+              }}
+            >
               <ArrowLeft className="size-4" />
               {isThai ? 'ย้อนกลับ' : 'Back'}
             </Button>
@@ -636,12 +998,18 @@ export function SubmissionForm({
             </Button>
           )}
           {step < steps.length - 1 ? (
-            <Button type="button" onClick={() => setStep((value) => value + 1)}>
+            // The distinct keys matter: without them React reuses this DOM button as the submit
+            // button on the same click, and the browser then submits the form (skipping step 4).
+            <Button
+              key="next-step"
+              type="button"
+              onClick={(event) => nextStep(event.currentTarget.form!)}
+            >
               {isThai ? 'ถัดไป' : 'Next'}
               <ArrowRight className="size-4" />
             </Button>
           ) : (
-            <Button type="submit" disabled={pending}>
+            <Button key="submit-form" type="submit" disabled={pending}>
               {pending
                 ? isThai
                   ? 'กำลังส่ง…'
