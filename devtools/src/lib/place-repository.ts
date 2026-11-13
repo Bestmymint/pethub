@@ -8,6 +8,7 @@ import {
   type MapPoint,
   type PlaceSummary,
 } from '@/lib/domain';
+import { placeSlugCandidates } from '@/lib/place-slug';
 import { prisma } from '@/lib/prisma';
 
 const dayNames = [
@@ -238,7 +239,7 @@ export async function findPublicMapPoints(filters: MapFilters, cursor = 0) {
 export async function getPublicPlace(slugOrId: string) {
   const place = await prisma.place.findFirst({
     where: {
-      OR: [{ slug: slugOrId }, { id: slugOrId }],
+      OR: [{ slug: { in: placeSlugCandidates(slugOrId) } }, { id: slugOrId }],
       isVisible: true,
       deletedAt: null,
       status: { not: 'PENDING' },
