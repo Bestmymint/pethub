@@ -23,12 +23,25 @@ export async function blockedUserIds(viewerId: string) {
   return new Set(blocked.map((item) => item.blockedId));
 }
 
+/** Ids of the active members of a meetup: only these have a profile page that opens. */
+export async function activeMemberIds(meetupId: string) {
+  const members = await prisma.meetupMember.findMany({
+    where: { meetupId, state: 'ACTIVE' },
+    select: { userId: true },
+  });
+  return new Set(members.map((item) => item.userId));
+}
+
 /**
  * The one place that turns a stored message into the DTO the chat sends, so the message list and the
  * pinned list always agree. Messages from blocked users are hidden for the viewer, except pinned ones:
  * a pin is a host decision and stays visible to everyone.
  */
-export function toMessageDto(message: MessageRow, blockedIds: ReadonlySet<string>): ChatMessage {
+export function toMessageDto(
+  message: MessageRow,
+  blockedIds: ReadonlySet<string>,
+  memberIds: ReadonlySet<string>,
+): ChatMessage {
   const hidden =
     message.kind !== 'SYSTEM' &&
     !message.pinnedAt &&
@@ -46,6 +59,7 @@ export function toMessageDto(message: MessageRow, blockedIds: ReadonlySet<string
     author:
       hidden || !message.author ? null : { ...message.author, image: avatarUrl(message.author) },
     authorId: message.authorId,
+    authorIsMember: Boolean(message.authorId && memberIds.has(message.authorId)),
     blocked: hidden,
     deleted: Boolean(message.deletedAt),
     pinned: Boolean(message.pinnedAt),

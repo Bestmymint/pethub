@@ -6,6 +6,8 @@ export interface ChatMessage {
   mediaUrl: string | null;
   author: { id: string; name: string; image?: string | null } | null;
   authorId: string | null;
+  /** The author is still an active member, so their profile page opens. False for someone who left or was removed. */
+  authorIsMember: boolean;
   /** The viewer blocked the sender: text, image and author are withheld. */
   blocked: boolean;
   deleted: boolean;

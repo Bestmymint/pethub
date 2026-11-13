@@ -452,6 +452,8 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
   const emittedMessages = new Set<string>();
 
   const joinedAtOf = (spec: MeetupSpec) => hoursAgo(now, (spec.messages[0]?.hours ?? 24) - 1);
+  /** Who wrote messages in which Meetup, so every author can be made a member afterwards. */
+  const messageAuthors: { meetupId: string; userId: string; joinedAt: Date }[] = [];
   const addMember = (meetupId: string, userKey: UserKey, joinedAt: Date) => {
     // A number is used up for every candidate, present or not, so ids do not shift once an account appears.
     memberCount += 1;
@@ -501,6 +503,7 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
       }
       const author = authorId(message.author);
       if (!author) return; // the demo user account does not exist: skip its lines
+      messageAuthors.push({ meetupId, userId: author, joinedAt: joinedAtOf(spec) });
       let objectKey: string | undefined;
       if (message.image) {
         objectKey = demoImageKey(message.image);
@@ -527,6 +530,14 @@ export function buildDemoContent(refs: DemoRefs): DemoContent {
 
   // The second sign-in user also joins the first Meetup, so it holds a conversation with the first user.
   addMember(demoId('meetup', 1), 'demoUser2', joinedAtOf(MEETUPS[0]!));
+
+  // Whoever wrote a message is a member, so their name in the chat opens a profile. These come last, so
+  // the ids above never shift and an earlier demo run is repaired by inserting only the missing rows.
+  for (const { meetupId, userId: memberUserId, joinedAt } of messageAuthors) {
+    if (members.some((row) => row.meetupId === meetupId && row.userId === memberUserId)) continue;
+    memberCount += 1;
+    members.push({ id: demoId('member', memberCount), meetupId, userId: memberUserId, joinedAt });
+  }
 
   const reviews: Prisma.ReviewCreateManyInput[] = [];
   REVIEWS.forEach((spec, index) => {
