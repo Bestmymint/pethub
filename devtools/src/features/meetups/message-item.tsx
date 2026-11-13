@@ -39,9 +39,10 @@ export function MessageItem({
   const th = locale === 'th';
   const isSystem = message.kind === 'SYSTEM';
   const isOwn = message.authorId === viewerId;
-  const profileHref = message.author
-    ? withLocale(locale, `/meetups/${meetupId}/members/${encodeURIComponent(message.author.id)}`)
-    : undefined;
+  const profileHref =
+    message.author && message.authorIsMember
+      ? withLocale(locale, `/meetups/${meetupId}/members/${encodeURIComponent(message.author.id)}`)
+      : undefined;
   const actions = messageActions({ isOwn, canModerate, pinned, pinLimitReached });
   const showMenu = !message.deleted && !isSystem && !message.blocked;
 
@@ -92,6 +93,8 @@ export function MessageItem({
                 >
                   {message.author.name}
                 </a>
+              ) : message.author ? (
+                message.author.name
               ) : th ? (
                 'สมาชิก'
               ) : (

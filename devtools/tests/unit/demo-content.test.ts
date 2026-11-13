@@ -179,6 +179,28 @@ describe('buildDemoContent', () => {
     expect(new Set(pairs).size).toBe(pairs.length);
   });
 
+  it('makes every message author an active member of that Meetup, so their profile link opens', () => {
+    const memberPairs = new Set(content.members.map((m) => `${m.meetupId}:${m.userId}`));
+    const authors = content.messages.filter((m) => m.authorId);
+    expect(authors.length).toBeGreaterThan(0);
+    for (const message of authors)
+      expect(memberPairs.has(`${message.meetupId}:${message.authorId}`)).toBe(true);
+    expect(memberPairs.has('demo_meetup_1:demo_user_5')).toBe(true);
+  });
+
+  it('is repeatable: the same input gives the same member rows and ids', () => {
+    expect(buildDemoContent(refs()).members).toEqual(content.members);
+  });
+
+  it('adds the missing author memberships after the others, so existing member ids do not shift', () => {
+    const ids = content.members.map((m) => Number((m.id as string).split('_').pop()));
+    const extra = content.members.find(
+      (m) => m.meetupId === 'demo_meetup_1' && m.userId === 'demo_user_5',
+    )!;
+    expect(Number((extra.id as string).split('_').pop())).toBe(Math.max(...ids));
+    expect(ids).toEqual([...ids].sort((a, b) => a - b));
+  });
+
   it('gives every made-up member their pets, owned by that member and marked as demo data', () => {
     expect(content.pets).toHaveLength(MEMBER_PETS.flat().length);
     const owners = new Set(content.pets.map((pet) => pet.ownerId));
